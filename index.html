@@ -1,0 +1,1017 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Bandeiras · Teste</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --bg: #14170f; --painel: #1f2418; --painel2: #2a3121; --borda: #3b4530;
+    --texto: #e8ecd9; --suave: #a3ad8c; --acento: #c9a227; --verde: #6b8e3a; --perigo: #b0413e; --energia: #3e8fb0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  button { font: inherit; cursor: pointer; }
+  .escondido { display: none !important; }
+
+  /* ---------- Criação de personagem ---------- */
+  #criacao { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+  .cartao { width: 100%; max-width: 420px; background: var(--painel); border: 1px solid var(--borda); border-radius: 16px; padding: 24px; }
+  h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: 1px; text-transform: uppercase; color: var(--acento); }
+  .sub { margin: 0 0 20px; color: var(--suave); font-size: 14px; }
+  label.titulo { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--suave); margin: 18px 0 8px; }
+  input[type=text] { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--borda); background: var(--painel2); color: var(--texto); font-size: 16px; }
+  input[type=text]:focus { outline: 2px solid var(--acento); border-color: transparent; }
+  .grelha { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .opcao { aspect-ratio: 1; border-radius: 12px; border: 2px solid var(--borda); background: var(--painel2); font-size: 26px;
+    display: flex; align-items: center; justify-content: center; padding: 0; }
+  .opcao.ativa { border-color: var(--acento); box-shadow: 0 0 0 2px rgba(201,162,39,.3); }
+  .cor { border-radius: 50%; }
+  .previa { display: flex; align-items: center; gap: 14px; margin-top: 22px; padding: 14px; background: var(--painel2); border-radius: 12px; }
+  .nomeprev { font-weight: 600; font-size: 18px; }
+  .patente { color: var(--suave); font-size: 13px; }
+  .principal { width: 100%; margin-top: 20px; padding: 14px; border: 0; border-radius: 12px; background: var(--acento); color: #1a1a0f;
+    font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
+  .principal:disabled { opacity: .4; cursor: not-allowed; }
+  .erro { color: #e0807d; font-size: 13px; min-height: 18px; margin-top: 6px; }
+  .avatar { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 26px; border: 3px solid #fff; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+
+  /* ---------- Mapa e HUD ---------- */
+  #jogo { position: fixed; inset: 0; }
+  #mapa { position: absolute; inset: 0; background: #2b2f26; }
+  .hud { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 1000; background: rgba(31,36,24,.95);
+    border: 1px solid var(--borda); border-radius: 14px; padding: 10px 12px; }
+  .hud .l1 { display: flex; gap: 10px; align-items: center; }
+  .hud .avatar { width: 42px; height: 42px; font-size: 22px; }
+  .hud .info { flex: 1; min-width: 0; }
+  .hud .nome { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hud .linha { font-size: 12px; color: var(--suave); }
+  .barra { height: 6px; background: var(--painel2); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+  .barra > div { height: 100%; background: var(--verde); width: 0; transition: width .4s; }
+  .barra.en > div { background: var(--energia); }
+  .barra.ouro > div { background: var(--acento); }
+  .hud .l2 { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; }
+  .hud .l2 .en { flex: 1; min-width: 0; }
+  .hud .l2 .en .t { color: var(--suave); }
+  .recursos { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; font-size: 13px; font-weight: 600; }
+  .recursos span { white-space: nowrap; }
+  .estado { position: absolute; top: 132px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(31,36,24,.94);
+    border: 1px solid var(--borda); border-radius: 20px; padding: 5px 12px; font-size: 12px; color: var(--suave);
+    white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; }
+  .estado.aviso { color: #f0c96a; }
+  .zona { position: absolute; top: 164px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(201,162,39,.95);
+    color: #1a1a0f; border-radius: 12px; padding: 7px 12px; font-size: 13px; font-weight: 600; text-align: center;
+    width: max-content; max-width: calc(100% - 32px); }
+  .toast { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 1500; background: var(--verde);
+    color: #fff; border-radius: 12px; padding: 12px 18px; font-weight: 600; width: max-content; max-width: calc(100% - 32px);
+    text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+  .toast.mau { background: var(--perigo); }
+  .botoes { position: absolute; right: 12px; bottom: 24px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+  .redondo { width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--borda); background: rgba(31,36,24,.95);
+    color: var(--texto); font-size: 22px; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+
+  .marcador, .pinpoi { background: none; border: none; }
+  .marcador .avatar { width: 44px; height: 44px; font-size: 24px; }
+  .etiqueta { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; background: rgba(20,23,15,.85);
+    color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 6px; }
+  .marcador .etiqueta { top: 48px; }
+  .pinpoi .p { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; border: 3px solid #888; background: #2a3121; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+  .pinpoi .etiqueta { top: 44px; }
+
+  /* ---------- Folhas (perfil, POI) ---------- */
+  .fundo { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; }
+  .folha { width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto; background: var(--painel); border: 1px solid var(--borda);
+    border-bottom: 0; border-radius: 18px 18px 0 0; padding: 20px 18px 26px; }
+  .folha .topo { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { background: var(--painel2); border-radius: 10px; padding: 10px 12px; }
+  .stat .v { font-size: 18px; font-weight: 700; }
+  .stat .r { font-size: 12px; color: var(--suave); }
+  .bloco { background: var(--painel2); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .bloco .r { font-size: 12px; color: var(--suave); margin-bottom: 6px; }
+  .bloco .v { font-size: 18px; font-weight: 700; }
+  .bloco .barra { height: 8px; }
+  .nota { font-size: 12px; color: var(--suave); margin-top: 6px; line-height: 1.4; }
+  .seccao { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--suave); margin: 16px 0 8px; }
+  .acoes { display: flex; gap: 10px; margin-top: 16px; }
+  .acoes button { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid var(--borda); background: var(--painel2); color: var(--texto); }
+  .acoes .perigo { border-color: var(--perigo); color: #f0a09d; }
+  .acoes .ok { background: var(--acento); border-color: var(--acento); color: #1a1a0f; font-weight: 700; }
+  .acoes button:disabled { opacity: .45; cursor: not-allowed; }
+  .redondo { position: relative; }
+  .badge { position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; border-radius: 10px; background: var(--perigo);
+    color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+  .missao { display: flex; align-items: center; gap: 10px; background: var(--painel2); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
+  .missao .t { flex: 1; }
+  .missao .xp { font-size: 12px; font-weight: 700; color: var(--acento); }
+  .missao.feita { opacity: .55; }
+  .editar { width: 100%; margin-top: 4px; padding: 10px; border-radius: 10px; border: 1px solid var(--borda); background: var(--painel2); color: var(--texto); }
+</style>
+</head>
+<body>
+
+<!-- Criação de personagem -->
+<section id="criacao" class="escondido">
+  <div class="cartao">
+    <h1>Bandeiras</h1>
+    <p class="sub">Teste · Sintra, Mafra e Torres Vedras. Começas no nível 0 — explora e aprende.</p>
+    <label class="titulo" for="nome">Nome de código</label>
+    <input id="nome" type="text" maxlength="16" placeholder="ex.: Falcão" autocomplete="off">
+    <div class="erro" id="erroNome"></div>
+    <label class="titulo">Aspeto</label>
+    <div class="grelha" id="avatares"></div>
+    <label class="titulo">Cor</label>
+    <div class="grelha" id="cores"></div>
+    <div class="previa">
+      <div class="avatar" id="previaAvatar"></div>
+      <div>
+        <div class="nomeprev" id="previaNome">—</div>
+        <div class="patente">Militante · Nível 0</div>
+      </div>
+    </div>
+    <button class="principal" id="entrar" disabled>Entrar no mapa</button>
+  </div>
+</section>
+
+<!-- Jogo -->
+<section id="jogo" class="escondido">
+  <div id="mapa"></div>
+  <div class="hud">
+    <div class="l1">
+      <div class="avatar" id="hudAvatar"></div>
+      <div class="info">
+        <div class="nome" id="hudNome"></div>
+        <div class="linha" id="hudLinha"></div>
+        <div class="barra"><div id="hudXp"></div></div>
+      </div>
+    </div>
+    <div class="l2">
+      <div class="en">
+        <span class="t" id="hudEnergiaTxt"></span>
+        <div class="barra en"><div id="hudEnergia"></div></div>
+      </div>
+    </div>
+    <div class="recursos" id="hudRecursos"></div>
+  </div>
+  <div class="estado" id="estado">A procurar sinal GPS…</div>
+  <div class="zona escondido" id="zona"></div>
+  <div class="toast escondido" id="toast"></div>
+  <div class="botoes">
+    <button class="redondo" id="btnCasa" title="Casa">🏠</button>
+    <button class="redondo" id="btnPerfil" title="Perfil e missões">👤<span class="badge escondido" id="badgeMissoes"></span></button>
+    <button class="redondo" id="btnCentrar" title="Centrar em mim">◎</button>
+  </div>
+</section>
+
+<!-- Perfil -->
+<div class="fundo escondido" id="perfil">
+  <div class="folha">
+    <div class="topo">
+      <div class="avatar" id="perfilAvatar"></div>
+      <div>
+        <div class="nomeprev" id="perfilNome"></div>
+        <div class="patente" id="perfilPatente"></div>
+      </div>
+    </div>
+    <div id="perfilCorpo"></div>
+    <div class="acoes">
+      <button id="fecharPerfil">Fechar</button>
+      <button class="perigo" id="apagar">Apagar personagem</button>
+    </div>
+  </div>
+</div>
+
+<!-- Editar personagem -->
+<div class="fundo escondido" id="folhaEditar">
+  <div class="folha">
+    <div class="nomeprev">Editar personagem</div>
+    <label class="titulo" for="editNome">Nome de código</label>
+    <input id="editNome" type="text" maxlength="16" autocomplete="off">
+    <div class="erro" id="editErro"></div>
+    <label class="titulo">Aspeto</label>
+    <div class="grelha" id="editAvatares"></div>
+    <label class="titulo">Cor</label>
+    <div class="grelha" id="editCores"></div>
+    <div class="acoes">
+      <button id="editCancelar">Cancelar</button>
+      <button class="ok" id="editGuardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- POI / Casa -->
+<div class="fundo escondido" id="folhaPoi">
+  <div class="folha">
+    <div class="topo">
+      <div class="avatar" id="poiEmoji" style="background:#2a3121"></div>
+      <div>
+        <div class="nomeprev" id="poiNome"></div>
+        <div class="patente" id="poiDist"></div>
+      </div>
+    </div>
+    <div id="poiCorpo"></div>
+    <div class="acoes">
+      <button id="fecharPoi">Fechar</button>
+      <button class="ok escondido" id="poiAcao"></button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="concelhos.js"></script>
+<script>
+// =====================================================================
+//  REGRAS DO TESTE (tudo o que é ajustável está aqui)
+// =====================================================================
+// XP necessário para passar de cada nível ao seguinte (0→1, 1→2, ..., 9→10)
+const XP_NIVEIS = [100, 103, 106, 109, 112, 115, 118, 122, 126, 130];
+// Depois do nível 10 (ainda por definir): +4 por nível
+const xpParaSubir = n => n < XP_NIVEIS.length ? XP_NIVEIS[n] : XP_NIVEIS[XP_NIVEIS.length - 1] + 4 * (n - XP_NIVEIS.length + 1);
+// Nível, XP dentro do nível e XP necessário para o próximo
+function progressoNivel(xp) {
+  let n = 0;
+  while (n < NIVEL_MAXIMO && xp >= xpParaSubir(n)) { xp -= xpParaSubir(n); n++; }
+  return { n, dentro: xp, precisa: xpParaSubir(n) };
+}
+const NIVEL_MAXIMO = 10;             // bloqueado no 10 durante o teste
+const XP_POR_KM = 5;                 // andar
+const XP_POR_ANEXAR = 50;            // anexar um POI
+
+const RAIO_POI = 30;                 // metros
+const PRECISAO_MAXIMA = 40;          // GPS pior que ±40 m não conta
+const MAX_PONTE_HORAS = 4;           // se a app "dormiu" e voltaste no mesmo sítio, conta até 4 h desse intervalo
+
+// Edifícios (POIs anexados) por nível: nível 0 = 0, nível 1 = 2, depois +1 a cada 2 níveis
+const maxEdificiosNivel = n => n < 1 ? 0 : 2 + Math.floor((n - 1) / 2);
+
+// Energia
+const energiaMaxBase = n => 50 + 2 * n;
+const ENERGIA_POR_KM = 1;            // gasta 1 por km andado
+const ENERGIA_POR_30MIN_ANEXAR = 1;  // gasta 1 por cada 30 min a anexar
+const REGEN_BASE = 1;                // ⚠️ proposta minha: 1 energia/h sempre (senão antes da casa nunca recupera)
+const regenAlegria = a => a >= 10 ? 5 : a >= 5 ? 2 : 0;   // energia/h extra pela alegria
+
+// Casa
+const NIVEL_CASA = 3;
+const RAIO_CASA = 50;
+const CASA_OURO_HORA = 1, CASA_COMIDA_HORA = 1, CASA_ALEGRIA = 2;
+const CASA_HORAS_SEGUIDAS = 4, CASA_ENERGIA_BONUS = 20;
+
+// Consumo diário (a partir do nível 3)
+const NIVEL_CONSUMO = 3;
+const CONSUMO_COMIDA = 4, CONSUMO_OURO = 5;
+const FOME_ALEGRIA = -2;             // por cada dia sem comida
+const FOME_ENERGIA_MAX = -10;        // por cada dia sem comida (mínimo 10 de energia máxima)
+const ENERGIA_MAX_MINIMA = 10;
+
+const RECURSOS = {
+  ouro:   { nome: 'ouro',   icone: '🪙' },
+  comida: { nome: 'comida', icone: '🍞' },
+  pedra:  { nome: 'pedra',  icone: '🪨' },
+  ferro:  { nome: 'ferro',  icone: '🔩' },
+};
+
+// POIs: horas para anexar, ciclo de produção (h), o que produz por ciclo, máximo de ciclos acumulados
+const POIS = [
+  { id: 'cupastone', nome: 'Cupastone', emoji: '🪨', lat: 38.866247, lng: -9.323293,
+    horasAnexar: 8, cicloHoras: 1, produz: { pedra: 1 }, maxCiclos: 4 },
+  { id: 'asb', nome: 'Serralharia ASB (Sobreiro)', emoji: '🔩', lat: 38.960359, lng: -9.347669,
+    horasAnexar: 8, cicloHoras: 1, produz: { ferro: 1 }, maxCiclos: 4 },
+  { id: 'intermarche-mafra', nome: 'Intermarché de Mafra', emoji: '🛒', lat: 38.9317, lng: -9.3301,
+    horasAnexar: 20, cicloHoras: 1, produz: { comida: 3, ouro: 1 }, maxCiclos: 8, minutosParaRecolher: 5 },
+  { id: 'preguinho', nome: 'Preguinho da Achada', emoji: '🍽️', lat: 38.9709, lng: -9.3727,
+    horasAnexar: 20, cicloHoras: 24, produz: { comida: 2 }, maxCiclos: 1 },
+  { id: 'cruzamento-negro', nome: 'Cruzamento Negro', emoji: '✖️', lat: 39.121733, lng: -9.368869,
+    horasAnexar: 20, cicloHoras: 24, produz: { comida: 2 }, maxCiclos: 1 },
+  { id: 'palacio-mafra', nome: 'Palácio Nacional de Mafra', emoji: '🏰', lat: 38.9369, lng: -9.3258,
+    horasAnexar: 1, cicloHoras: 24, produz: { ouro: 3 }, maxCiclos: 7 },
+  { id: 'pena', nome: 'Palácio da Pena', emoji: '🏯', lat: 38.7876, lng: -9.3906,
+    horasAnexar: 1, cicloHoras: 24, produz: { ouro: 3 }, maxCiclos: 7 },
+  { id: 'miradouro', nome: 'Miradouro do Lizandro', emoji: '🔭', lat: 38.944813, lng: -9.414583,
+    horasAnexar: 1, cicloHoras: 24, produz: { ouro: 3 }, maxCiclos: 7 },
+  { id: 'castelo-torres-vedras', nome: 'Castelo de Torres Vedras', emoji: '🏰', lat: 39.094684, lng: -9.261112,
+    horasAnexar: 1, cicloHoras: 24, produz: { ouro: 3 }, maxCiclos: 7 },
+];
+
+const AVATARES = ['🧔', '👩', '🧑‍🦱', '👨‍🦰', '👩‍🦳', '🧕'];
+const CORES = ['#6b8e3a', '#8a6d3b', '#4a6a8a', '#8a3b3b', '#5d4a8a', '#3b7a74'];
+const PATENTE = 'Militante';
+const INICIO = [38.9369, -9.3290];   // modo de teste: começa perto do Palácio de Mafra
+
+// Parâmetros do URL: ?rapido=3600 (1 h passa num segundo) · ?j=2 (outro jogador no mesmo telemóvel)
+const URLP = new URLSearchParams(location.search);
+const VELOCIDADE = Math.max(1, Number(URLP.get('rapido')) || 1);
+const HORA = 3600000 / VELOCIDADE, DIA = 24 * HORA, MIN = HORA / 60;
+const SUFIXO_TEMPO = VELOCIDADE > 1 ? ` · ⏩ x${VELOCIDADE}` : '';
+// O modo rápido guarda num sítio à parte, para não estragar o progresso real
+const CHAVE = 'bandeiras.teste.j' + (URLP.get('j') || '1') + (VELOCIDADE > 1 ? '.rapido' : '');
+
+// =====================================================================
+//  Utilitários
+// =====================================================================
+const $ = id => document.getElementById(id);
+const fmtDist = m => m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`;
+function fmtTempo(ms) {
+  if (ms < 0) ms = 0;
+  const totalMin = Math.floor(ms / MIN);
+  const d = Math.floor(totalMin / 1440), h = Math.floor(totalMin % 1440 / 60), m = totalMin % 60;
+  return d ? `${d}d ${h}h` : `${h}h${String(m).padStart(2, '0')}`;
+}
+const fmtRecursos = obj => Object.entries(obj).filter(([, v]) => v).map(([k, v]) => `${RECURSOS[k].icone} ${v} ${RECURSOS[k].nome}`).join(' + ');
+const esc = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+
+function carregar() { try { return JSON.parse(localStorage.getItem(CHAVE)); } catch { return null; } }
+function guardar() { try { localStorage.setItem(CHAVE, JSON.stringify(P)); } catch {} }
+
+// Ponto dentro dos concelhos (ray casting sobre o GeoJSON)
+function dentroPoligono(lat, lng, aneis) {
+  let dentro = false;
+  for (const anel of aneis) {
+    for (let i = 0, j = anel.length - 1; i < anel.length; j = i++) {
+      const [xi, yi] = anel[i], [xj, yj] = anel[j];
+      if ((yi > lat) !== (yj > lat) && lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) dentro = !dentro;
+    }
+  }
+  return dentro;
+}
+function poligonosDe(g) { return g.type === 'Polygon' ? [g.coordinates] : g.coordinates; }
+function dentroDosConcelhos(lat, lng) {
+  return Object.values(CONCELHOS).some(g => poligonosDe(g).some(p => dentroPoligono(lat, lng, p)));
+}
+
+// =====================================================================
+//  Personagem e atributos
+// =====================================================================
+let P = carregar();
+
+const nivel = () => progressoNivel(P.xp).n;
+const edificios = () => POIS.filter(p => est(p.id).dono).length;
+const maxEdificios = () => maxEdificiosNivel(nivel());
+function est(id) { return P.pois[id] || (P.pois[id] = { ms: 0, dono: false }); }
+
+function emCasa() { return !!(P.casa && presente(P.casa, RAIO_CASA)); }
+function alegria() { return (emCasa() ? CASA_ALEGRIA : 0) + FOME_ALEGRIA * P.consumo.diasFome; }
+function energiaMax() {
+  return Math.max(ENERGIA_MAX_MINIMA, energiaMaxBase(nivel()) + FOME_ENERGIA_MAX * P.consumo.diasFome);
+}
+const regenHora = () => REGEN_BASE + regenAlegria(alegria());
+
+function ajustarEnergia(d) {
+  P.energia = Math.max(0, Math.min(energiaMax(), P.energia + d));
+}
+function darXp(n) { P.xp += n; }
+
+// =====================================================================
+//  Criação
+// =====================================================================
+const rascunho = { nome: '', avatar: AVATARES[0], cor: CORES[0] };
+function montarCriacao() {
+  $('avatares').innerHTML = ''; $('cores').innerHTML = '';
+  AVATARES.forEach(a => {
+    const b = document.createElement('button');
+    b.className = 'opcao' + (a === rascunho.avatar ? ' ativa' : ''); b.textContent = a;
+    b.onclick = () => { rascunho.avatar = a; montarCriacao(); };
+    $('avatares').appendChild(b);
+  });
+  CORES.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'opcao cor' + (c === rascunho.cor ? ' ativa' : ''); b.style.background = c;
+    b.onclick = () => { rascunho.cor = c; montarCriacao(); };
+    $('cores').appendChild(b);
+  });
+  pintarAvatar($('previaAvatar'), rascunho);
+  $('previaNome').textContent = rascunho.nome.trim() || '—';
+  validarNome();
+}
+function validarNome() {
+  const n = rascunho.nome.trim();
+  let erro = '';
+  if (n && n.length < 3) erro = 'Mínimo 3 caracteres.';
+  else if (n && !/^[\p{L}\p{N} _-]+$/u.test(n)) erro = 'Só letras, números, espaço, _ e -.';
+  $('erroNome').textContent = erro;
+  $('entrar').disabled = !n || !!erro;
+}
+$('nome').addEventListener('input', e => { rascunho.nome = e.target.value; $('previaNome').textContent = rascunho.nome.trim() || '—'; validarNome(); });
+$('entrar').onclick = () => {
+  const agora = Date.now();
+  P = {
+    nome: rascunho.nome.trim(), avatar: rascunho.avatar, cor: rascunho.cor, criadoEm: agora,
+    xp: 0, nivelVisto: 0, distancia: 0, kmXp: 0, kmEnergia: 0,
+    energia: energiaMaxBase(0),
+    recursos: { ouro: 0, comida: 0, pedra: 0, ferro: 0 },
+    pois: {}, presencas: {}, missoes: {}, anexando: null,
+    casa: null, casaMs: 0, casaHorasPagas: 0, casaSeguidoMs: 0, casaBlocos: 0,
+    consumo: { proximo: null, semOuro: false, diasFome: 0 },
+    regenAcc: 0, ultimoProcesso: agora,
+  };
+  guardar();
+  iniciarJogo();
+};
+function pintarAvatar(el, p) { el.textContent = p.avatar; el.style.background = p.cor; }
+
+// =====================================================================
+//  Mapa e GPS
+// =====================================================================
+let mapa, marcador, circuloPrecisao, ultimaPos = null, modoTeste = false;
+let posAtual = null, precisaoAtual = Infinity, ultimoFix = 0;
+const pinsPoi = {};
+let pinCasa = null;
+
+function iconeJogador() {
+  return L.divIcon({ className: 'marcador', iconSize: [44, 44], iconAnchor: [22, 22],
+    html: `<div class="avatar" style="background:${P.cor}">${P.avatar}</div><div class="etiqueta">${esc(P.nome)}</div>` });
+}
+
+function gpsFresco() { return modoTeste || Date.now() - ultimoFix < 30000; }
+function presente(sitio, raio) {
+  return !!posAtual && gpsFresco() && precisaoAtual <= PRECISAO_MAXIMA && posAtual.distanceTo([sitio.lat, sitio.lng]) <= raio;
+}
+// Com GPS fresco, sabemos com certeza que estamos FORA (para quebrar presenças)
+function foraComCerteza(sitio, raio) {
+  return !!posAtual && gpsFresco() && posAtual.distanceTo([sitio.lat, sitio.lng]) > raio + Math.min(precisaoAtual, PRECISAO_MAXIMA);
+}
+
+function moverPara(latlng, precisao) {
+  posAtual = latlng; precisaoAtual = precisao || 0; ultimoFix = Date.now();
+  if (!marcador) {
+    marcador = L.marker(latlng, { icon: iconeJogador(), zIndexOffset: 1000 }).addTo(mapa);
+    circuloPrecisao = L.circle(latlng, { radius: precisao || 0, color: P.cor, weight: 1, fillOpacity: .12 }).addTo(mapa);
+    mapa.setView(latlng, 16);
+  } else {
+    marcador.setLatLng(latlng);
+    circuloPrecisao.setLatLng(latlng).setRadius(precisao || 0);
+  }
+  if (ultimaPos) {
+    const d = ultimaPos.distanceTo(latlng);
+    const ruido = Math.max(5, (precisao || 0) / 2);
+    if (d <= ruido) return;              // tremor do GPS: ignora
+    if (d < 500) contarDistancia(d);     // saltos maiores (teletransporte / GPS perdido) não contam
+  }
+  ultimaPos = latlng;
+  tick();
+}
+
+function contarDistancia(d) {
+  P.distancia += d;
+  const km = Math.floor(P.distancia / 1000);
+  if (km > P.kmXp) { darXp((km - P.kmXp) * XP_POR_KM); P.kmXp = km; }
+  if (km > P.kmEnergia) { ajustarEnergia(-(km - P.kmEnergia) * ENERGIA_POR_KM); P.kmEnergia = km; }
+  guardar();
+}
+
+function ativarModoTeste(motivo) {
+  if (modoTeste) return;
+  modoTeste = true;
+  $('estado').textContent = `${motivo} · toca no mapa para andar${SUFIXO_TEMPO}`;
+  $('estado').classList.add('aviso');
+  if (!marcador) moverPara(L.latLng(INICIO), 0);
+  mapa.on('click', e => moverPara(e.latlng, 0));
+}
+
+function iniciarGps() {
+  if (!('geolocation' in navigator)) return ativarModoTeste('GPS indisponível');
+  navigator.geolocation.watchPosition(
+    pos => {
+      if (modoTeste) return;
+      const { latitude, longitude, accuracy } = pos.coords;
+      $('estado').textContent = `GPS ativo · ±${Math.round(accuracy)} m${SUFIXO_TEMPO}`;
+      $('estado').classList.remove('aviso');
+      moverPara(L.latLng(latitude, longitude), accuracy);
+    },
+    err => ativarModoTeste(err.code === 1 ? 'Localização recusada' : 'Sem sinal GPS'),
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 }
+  );
+}
+
+function desenharFronteiras() {
+  const mundo = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
+  const buracos = [];
+  const grupo = [];
+  for (const g of Object.values(CONCELHOS)) {
+    for (const poli of poligonosDe(g)) {
+      const anel = poli[0].map(([lng, lat]) => [lat, lng]);
+      buracos.push(anel);
+      grupo.push(L.polyline(anel.concat([anel[0]]), { color: '#c9a227', weight: 2, opacity: .9 }));
+    }
+  }
+  L.polygon([mundo, ...buracos], { stroke: false, fillColor: '#14170f', fillOpacity: .6, interactive: false }).addTo(mapa);
+  const linhas = L.featureGroup(grupo).addTo(mapa);
+  const limites = linhas.getBounds();
+  mapa.setMaxBounds(limites.pad(0.15));
+  mapa.setMinZoom(Math.max(9, mapa.getBoundsZoom(limites) - 1));
+  return limites;
+}
+
+// =====================================================================
+//  POIs
+// =====================================================================
+function corPoi(p) { const e = est(p.id); return e.dono ? P.cor : e.ms > 0 ? '#c9a227' : '#888'; }
+function iconePoi(p) {
+  return L.divIcon({ className: 'pinpoi', iconSize: [40, 40], iconAnchor: [20, 20],
+    html: `<div class="p" style="border-color:${corPoi(p)}">${p.emoji}</div><div class="etiqueta">${esc(p.nome)}</div>` });
+}
+function desenharPois() {
+  POIS.forEach(p => {
+    if (pinsPoi[p.id]) { pinsPoi[p.id].setIcon(iconePoi(p)); return; }
+    L.circle([p.lat, p.lng], { radius: RAIO_POI, color: '#c9a227', weight: 1, dashArray: '4 4', fillOpacity: .08 })
+      .addTo(mapa).on('click', () => abrirPoi(p));
+    pinsPoi[p.id] = L.marker([p.lat, p.lng], { icon: iconePoi(p) }).addTo(mapa).on('click', () => abrirPoi(p));
+  });
+}
+function desenharCasa() {
+  if (!P.casa) return;
+  if (pinCasa) { pinCasa.forEach(l => mapa.removeLayer(l)); }
+  pinCasa = [
+    L.circle([P.casa.lat, P.casa.lng], { radius: RAIO_CASA, color: P.cor, weight: 2, fillOpacity: .12 }).addTo(mapa),
+    L.marker([P.casa.lat, P.casa.lng], { icon: L.divIcon({ className: 'pinpoi', iconSize: [40, 40], iconAnchor: [20, 20],
+      html: `<div class="p" style="border-color:${P.cor}">🏠</div><div class="etiqueta">Casa</div>` }) }).addTo(mapa).on('click', abrirCasa),
+  ];
+}
+
+// Ciclos acumulados (inteiros) de um POI
+const ciclosProntos = (p, e) => Math.floor(e.acc || 0);
+
+// =====================================================================
+//  Simulação (corre a cada segundo e recupera o tempo com a app fechada)
+// =====================================================================
+
+// Avança produção e regeneração entre dois instantes (sem eventos pelo meio)
+function avancar(de, ate) {
+  const dt = ate - de;
+  if (dt <= 0) return;
+  // Produção dos POIs (pára se o consumo diário de ouro não foi pago)
+  if (!P.consumo.semOuro) {
+    POIS.forEach(p => {
+      const e = est(p.id);
+      if (!e.dono) return;
+      e.acc = Math.min(p.maxCiclos, (e.acc || 0) + dt / (p.cicloHoras * HORA));
+    });
+  }
+  // Regeneração de energia
+  P.regenAcc += dt / HORA * regenHora();
+  const inteiros = Math.floor(P.regenAcc);
+  if (inteiros > 0) { ajustarEnergia(inteiros); P.regenAcc -= inteiros; }
+}
+
+// Consumo diário: 4 comida + 5 ouro
+function cobrarConsumo() {
+  const c = P.consumo;
+  if (P.recursos.ouro >= CONSUMO_OURO) { P.recursos.ouro -= CONSUMO_OURO; c.semOuro = false; }
+  else { c.semOuro = true; aviso(`Sem ${CONSUMO_OURO} ouro para o dia · os teus POIs pararam de produzir`, true); }
+  if (P.recursos.comida >= CONSUMO_COMIDA) { P.recursos.comida -= CONSUMO_COMIDA; c.diasFome = 0; }
+  else { c.diasFome++; aviso(`Sem comida! Alegria ${FOME_ALEGRIA} e energia máxima ${FOME_ENERGIA_MAX}`, true); }
+  ajustarEnergia(0);
+}
+
+function simular(agora) {
+  // Recuperar o tempo passado, parando em cada cobrança diária
+  let t = P.ultimoProcesso;
+  while (P.consumo.proximo && P.consumo.proximo <= agora) {
+    avancar(t, P.consumo.proximo);
+    t = P.consumo.proximo;
+    cobrarConsumo();
+    P.consumo.proximo += DIA;
+  }
+  avancar(t, agora);
+  P.ultimoProcesso = agora;
+
+  // Se estava sem ouro e entretanto já tem, paga logo e a produção retoma
+  if (P.consumo.semOuro && P.recursos.ouro >= CONSUMO_OURO) {
+    P.recursos.ouro -= CONSUMO_OURO; P.consumo.semOuro = false;
+    aviso(`Pagaste ${CONSUMO_OURO} ouro · os POIs voltaram a produzir`);
+  }
+  // Começa o consumo diário ao chegar ao nível 3
+  if (!P.consumo.proximo && nivel() >= NIVEL_CONSUMO) {
+    P.consumo.proximo = agora + DIA;
+    aviso(`Nível ${NIVEL_CONSUMO}: a partir de agora consomes ${CONSUMO_COMIDA} comida e ${CONSUMO_OURO} ouro por dia`);
+  }
+}
+
+// Porque é que não pode anexar este POI agora (ou '' se pode)
+function bloqueioAnexar(p) {
+  if (maxEdificios() === 0) return 'Nível 0: explora e aprende. Chega ao nível 1 para anexar edifícios.';
+  if (edificios() >= maxEdificios()) return `Limite de edifícios (${edificios()}/${maxEdificios()}) · sobe de nível`;
+  if (P.energia <= 0) return 'Sem energia para anexar';
+  if (P.anexando && P.anexando !== p.id) return `Já estás a anexar ${POIS.find(x => x.id === P.anexando).nome}`;
+  return '';
+}
+
+function comecarAnexar(p) {
+  if (!presente(p, RAIO_POI) || bloqueioAnexar(p) || est(p.id).dono) return;
+  P.anexando = p.id;
+  P.presencas['poi:' + p.id] = Date.now();   // o tempo conta a partir de agora
+  completarMissao('anexar');
+  guardar(); tick();
+  aviso(`⏳ A anexar ${p.nome}. Fica no local.`);
+}
+function pararAnexar() {
+  P.anexando = null; guardar(); tick();
+}
+
+// ---- Missões ----
+const MISSOES = [
+  { id: 'nome',   titulo: 'Alterar o nome',               xp: 20 },
+  { id: 'avatar', titulo: 'Alterar o avatar',             xp: 20 },
+  { id: 'anexar', titulo: 'Iniciar a anexação de 1 POI',  xp: 20 },
+];
+function completarMissao(id) {
+  if (P.missoes[id]) return;
+  const m = MISSOES.find(x => x.id === id);
+  P.missoes[id] = Date.now();
+  darXp(m.xp);
+  guardar();
+  setTimeout(() => aviso(`📜 Missão cumprida: ${m.titulo} · +${m.xp} XP`), 50);
+}
+const missoesPorFazer = () => MISSOES.filter(m => !P.missoes[m.id]).length;
+
+// Tempo em que estiveste num sítio desde a última verificação.
+// Se a app adormeceu e voltou a acordar no mesmo sítio, conta o intervalo (até MAX_PONTE_HORAS).
+function tempoPresente(chave, agora) {
+  const antes = P.presencas[chave];
+  P.presencas[chave] = agora;
+  if (!antes) return 0;
+  return Math.min(agora - antes, MAX_PONTE_HORAS * HORA);
+}
+
+let ultimoTick = Date.now();
+function tick() {
+  if (!P) return;
+  const agora = Date.now();
+  simular(agora);
+  let texto = '';
+
+  // ---- POIs: anexar ----
+  POIS.forEach(p => {
+    const e = est(p.id), chave = 'poi:' + p.id;
+    if (!presente(p, RAIO_POI)) {
+      if (foraComCerteza(p, RAIO_POI)) {
+        delete P.presencas[chave]; e.chegada = null;
+        if (P.anexando === p.id) { P.anexando = null; aviso(`Saíste de ${p.nome} · anexação parada`, true); }
+      }
+      return;
+    }
+    const dt = tempoPresente(chave, agora);
+    if (!e.chegada) e.chegada = agora;
+
+    if (e.dono) {
+      const n = ciclosProntos(p, e);
+      texto = `${p.emoji} ${p.nome} é teu · ${n ? fmtRecursos(mult(p.produz, n)) + ' para recolher' : 'nada para recolher'}`;
+      return;
+    }
+    if (P.anexando !== p.id) {
+      const b = bloqueioAnexar(p);
+      texto = b ? `${p.emoji} ${b}` : `${p.emoji} ${p.nome} · toca no POI e carrega em Anexar`;
+      return;
+    }
+    if (P.energia <= 0) { P.anexando = null; aviso('Sem energia · anexação parada', true); return; }
+
+    const antes = e.ms;
+    e.ms = Math.min(e.ms + dt, p.horasAnexar * HORA);
+    // energia: 1 por cada 30 min de anexação
+    const blocos = Math.floor(e.ms / (30 * MIN)) - Math.floor(antes / (30 * MIN));
+    if (blocos > 0) ajustarEnergia(-blocos * ENERGIA_POR_30MIN_ANEXAR);
+    texto = `${p.emoji} A anexar ${p.nome} · ${fmtTempo(e.ms)} / ${p.horasAnexar}h`;
+
+    if (e.ms >= p.horasAnexar * HORA) {
+      e.dono = true; e.acc = 0; e.anexadoEm = agora;
+      P.anexando = null;
+      darXp(XP_POR_ANEXAR);
+      desenharPois();
+      aviso(`🏆 Anexaste ${p.nome}! +${XP_POR_ANEXAR} XP`);
+    }
+  });
+
+  // ---- Casa ----
+  if (P.casa) {
+    if (presente(P.casa, RAIO_CASA)) {
+      const dt = tempoPresente('casa', agora);
+      P.casaMs += dt;
+      const horas = Math.floor(P.casaMs / HORA);
+      if (horas > P.casaHorasPagas) {
+        const n = horas - P.casaHorasPagas;
+        P.recursos.ouro += n * CASA_OURO_HORA; P.recursos.comida += n * CASA_COMIDA_HORA;
+        P.casaHorasPagas = horas;
+      }
+      P.casaSeguidoMs += dt;
+      const blocos = Math.floor(P.casaSeguidoMs / (CASA_HORAS_SEGUIDAS * HORA));
+      if (blocos > P.casaBlocos) {
+        ajustarEnergia((blocos - P.casaBlocos) * CASA_ENERGIA_BONUS);
+        aviso(`🏠 ${CASA_HORAS_SEGUIDAS}h seguidas em casa · +${CASA_ENERGIA_BONUS} energia`);
+        P.casaBlocos = blocos;
+      }
+      if (!texto) texto = `🏠 Em casa · ${fmtTempo(P.casaSeguidoMs)} seguidas · alegria +${CASA_ALEGRIA}`;
+    } else if (foraComCerteza(P.casa, RAIO_CASA)) {
+      delete P.presencas.casa;
+      P.casaSeguidoMs = 0; P.casaBlocos = 0;
+    }
+  }
+
+  // ---- Nível ----
+  const n = nivel();
+  if (n > P.nivelVisto) {
+    const antes = maxEdificiosNivel(P.nivelVisto), depois = maxEdificiosNivel(n);
+    let msg = `⬆️ Subiste ao nível ${n}!`;
+    if (depois > antes) msg += ` Podes ter ${depois} edifícios.`;
+    if (P.nivelVisto < NIVEL_CASA && n >= NIVEL_CASA) msg += ' Já podes escolher a tua casa 🏠';
+    aviso(msg);
+    P.nivelVisto = n;
+    ajustarEnergia(0);
+  }
+
+  guardar();
+  atualizarHud();
+  $('zona').textContent = texto;
+  $('zona').classList.toggle('escondido', !texto);
+  if (abertoPoi) renderPoi();
+  if (abertaCasa) renderCasa();
+  if (!$('perfil').classList.contains('escondido')) renderPerfil();
+}
+
+const mult = (obj, n) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, v * n]));
+
+// =====================================================================
+//  HUD
+// =====================================================================
+function atualizarHud() {
+  const { n, dentro: xpN, precisa } = progressoNivel(P.xp), noMax = n >= NIVEL_MAXIMO;
+  pintarAvatar($('hudAvatar'), P);
+  $('hudNome').textContent = P.nome;
+  $('hudLinha').textContent = `${PATENTE} · Nível ${n} · ` + (noMax ? 'nível máximo' : `${xpN}/${precisa} XP`);
+  $('hudXp').style.width = (noMax ? 100 : xpN / precisa * 100) + '%';
+  const max = energiaMax();
+  $('hudEnergiaTxt').textContent = `⚡ Energia ${P.energia}/${max}`;
+  $('hudEnergia').style.width = (P.energia / max * 100) + '%';
+  const r = P.recursos;
+  $('hudRecursos').innerHTML =
+    `<span>🪙 ${r.ouro}</span><span>🍞 ${r.comida}</span><span>🪨 ${r.pedra}</span><span>🔩 ${r.ferro}</span><span>😊 ${alegria()}</span>`;
+  const pend = missoesPorFazer();
+  $('badgeMissoes').textContent = pend;
+  $('badgeMissoes').classList.toggle('escondido', !pend);
+}
+
+let timerAviso;
+function aviso(texto, mau) {
+  $('toast').textContent = texto;
+  $('toast').classList.toggle('mau', !!mau);
+  $('toast').classList.remove('escondido');
+  clearTimeout(timerAviso);
+  timerAviso = setTimeout(() => $('toast').classList.add('escondido'), 4000);
+}
+
+// =====================================================================
+//  Folha de POI
+// =====================================================================
+let abertoPoi = null, abertaCasa = false;
+function abrirPoi(p) { abertoPoi = p; abertaCasa = false; renderPoi(); $('folhaPoi').classList.remove('escondido'); }
+function abrirCasa() { abertoPoi = null; abertaCasa = true; renderCasa(); $('folhaPoi').classList.remove('escondido'); }
+function fecharFolha() { abertoPoi = null; abertaCasa = false; $('folhaPoi').classList.add('escondido'); }
+$('fecharPoi').onclick = fecharFolha;
+$('folhaPoi').onclick = e => { if (e.target === $('folhaPoi')) fecharFolha(); };
+
+function textoDistancia(sitio, raio) {
+  if (!posAtual) return 'Posição desconhecida';
+  if (presente(sitio, raio)) return 'Estás no local';
+  return `A ${fmtDist(posAtual.distanceTo([sitio.lat, sitio.lng]))} · tens de estar a menos de ${raio} m`;
+}
+
+function descricaoProducao(p) {
+  const ciclo = p.cicloHoras === 24 ? 'por dia' : p.cicloHoras === 1 ? 'por hora' : `a cada ${p.cicloHoras}h`;
+  const max = p.cicloHoras === 24 ? `${p.maxCiclos} dia${p.maxCiclos > 1 ? 's' : ''}` : `${p.maxCiclos}h`;
+  return `${fmtRecursos(p.produz)} ${ciclo} · acumula no máximo ${max}` +
+    (p.minutosParaRecolher ? ` · tens de ficar ${p.minutosParaRecolher} min no local para recolher` : '');
+}
+
+function renderPoi() {
+  const p = abertoPoi, e = est(p.id), aqui = presente(p, RAIO_POI);
+  $('poiEmoji').textContent = p.emoji;
+  $('poiNome').textContent = p.nome;
+  $('poiDist').textContent = textoDistancia(p, RAIO_POI);
+  const prov = p.provisorio ? '<div class="nota">📍 Localização provisória.</div>' : '';
+  const btn = $('poiAcao');
+
+  if (!e.dono) {
+    const pct = Math.min(100, e.ms / (p.horasAnexar * HORA) * 100);
+    const aAnexar = P.anexando === p.id, bloqueio = bloqueioAnexar(p);
+    let estado = aAnexar ? '⏳ A anexar. Fica dentro do círculo; se saíres, a anexação pára.'
+      : bloqueio ? `⚠️ ${bloqueio}`
+      : 'Dentro do círculo, carrega em Anexar. O tempo fica guardado e pode ser em vários dias.';
+    $('poiCorpo').innerHTML = `
+      <div class="bloco">
+        <div class="r">Anexar</div>
+        <div class="v">${fmtTempo(e.ms)} / ${p.horasAnexar}h</div>
+        <div class="barra"><div style="width:${pct}%"></div></div>
+        <div class="nota">${estado}</div>
+      </div>
+      <div class="nota">Produz: ${descricaoProducao(p)}</div>
+      <div class="nota">Anexar dá +${XP_POR_ANEXAR} XP · gasta ${ENERGIA_POR_30MIN_ANEXAR} energia por cada 30 min ·
+        só podes anexar um POI de cada vez e, enquanto anexas, não podes recolher.</div>${prov}`;
+    btn.classList.remove('escondido');
+    if (aAnexar) {
+      btn.disabled = false; btn.textContent = 'Parar anexação'; btn.onclick = pararAnexar;
+    } else {
+      btn.disabled = !aqui || !!bloqueio;
+      btn.textContent = !aqui ? 'Vai ao local para anexar' : 'Anexar';
+      btn.onclick = () => comecarAnexar(p);
+    }
+    return;
+  }
+
+  const n = ciclosProntos(p, e), cheio = (e.acc || 0) >= p.maxCiclos;
+  const falta = (1 - ((e.acc || 0) % 1)) * p.cicloHoras * HORA;
+  let estado = cheio ? '⚠️ Cheio: parou de produzir. Vem recolher!' : `Próxima produção em ${fmtTempo(falta)}`;
+  if (P.consumo.semOuro) estado = `⚠️ Parado: não pagaste o consumo diário de ${CONSUMO_OURO} ouro.`;
+  $('poiCorpo').innerHTML = `
+    <div class="bloco">
+      <div class="r">Para recolher</div>
+      <div class="v">${n ? fmtRecursos(mult(p.produz, n)) : 'nada ainda'}</div>
+      <div class="barra ouro"><div style="width:${(e.acc || 0) / p.maxCiclos * 100}%"></div></div>
+      <div class="nota">${estado}</div>
+    </div>
+    <div class="nota">🏆 Anexado por ti. Produz: ${descricaoProducao(p)}</div>${prov}`;
+
+  btn.classList.remove('escondido');
+  let espera = 0;
+  if (aqui && p.minutosParaRecolher && e.chegada) espera = p.minutosParaRecolher * MIN - (Date.now() - e.chegada);
+  btn.disabled = !aqui || !n || espera > 0 || !!P.anexando;
+  btn.textContent = P.anexando ? 'Estás a anexar outro POI'
+    : !aqui ? 'Vai ao local para recolher' : !n ? 'Nada para recolher'
+    : espera > 0 ? `Espera ${Math.ceil(espera / 1000 / (MIN / 60000))} s…` : 'Recolher';
+  btn.onclick = () => recolher(p);
+}
+
+function recolher(p) {
+  const e = est(p.id), n = ciclosProntos(p, e);
+  if (!n || !presente(p, RAIO_POI) || P.anexando) return;
+  if (p.minutosParaRecolher && (!e.chegada || Date.now() - e.chegada < p.minutosParaRecolher * MIN)) return;
+  for (const [k, v] of Object.entries(p.produz)) P.recursos[k] += v * n;
+  e.acc -= n;
+  guardar(); atualizarHud(); renderPoi();
+  aviso(`+ ${fmtRecursos(mult(p.produz, n))}`);
+}
+
+// =====================================================================
+//  Casa
+// =====================================================================
+function renderCasa() {
+  const btn = $('poiAcao');
+  $('poiEmoji').textContent = '🏠';
+  $('poiNome').textContent = 'Casa';
+  btn.classList.remove('escondido');
+  const beneficios = `<div class="nota">A menos de ${RAIO_CASA} m de casa: ${fmtRecursos({ ouro: CASA_OURO_HORA, comida: CASA_COMIDA_HORA })} por hora,
+    alegria +${CASA_ALEGRIA}, e cada ${CASA_HORAS_SEGUIDAS}h seguidas recuperam ${CASA_ENERGIA_BONUS} de energia.</div>`;
+
+  if (nivel() < NIVEL_CASA) {
+    $('poiDist').textContent = `Disponível no nível ${NIVEL_CASA}`;
+    $('poiCorpo').innerHTML = `<div class="bloco"><div class="r">Casa</div><div class="v">🔒 Nível ${NIVEL_CASA}</div></div>${beneficios}`;
+    btn.disabled = true; btn.textContent = `Chega ao nível ${NIVEL_CASA}`;
+    return;
+  }
+  if (!P.casa) {
+    $('poiDist').textContent = 'Ainda não escolheste a tua casa';
+    $('poiCorpo').innerHTML = `<div class="bloco"><div class="r">Escolher casa</div>
+      <div class="nota">A casa fica no sítio onde estás agora. Tem de ser dentro de Sintra, Mafra ou Torres Vedras.</div></div>${beneficios}`;
+    const ok = posAtual && gpsFresco() && precisaoAtual <= PRECISAO_MAXIMA && dentroDosConcelhos(posAtual.lat, posAtual.lng);
+    btn.disabled = !ok; btn.textContent = ok ? 'Definir casa aqui' : 'Precisas de GPS dentro dos concelhos';
+    btn.onclick = () => {
+      if (!confirm('Definir a tua casa neste sítio?')) return;
+      P.casa = { lat: posAtual.lat, lng: posAtual.lng };
+      P.casaSeguidoMs = 0; P.casaBlocos = 0; delete P.presencas.casa;
+      guardar(); desenharCasa(); renderCasa(); aviso('🏠 Casa definida!');
+    };
+    return;
+  }
+  $('poiDist').textContent = textoDistancia(P.casa, RAIO_CASA);
+  const prox = CASA_HORAS_SEGUIDAS * HORA - (P.casaSeguidoMs % (CASA_HORAS_SEGUIDAS * HORA));
+  $('poiCorpo').innerHTML = `
+    <div class="bloco">
+      <div class="r">${emCasa() ? 'Estás em casa' : 'Fora de casa'}</div>
+      <div class="v">${fmtTempo(P.casaSeguidoMs)} seguidas</div>
+      <div class="barra en"><div style="width:${(P.casaSeguidoMs % (CASA_HORAS_SEGUIDAS * HORA)) / (CASA_HORAS_SEGUIDAS * HORA) * 100}%"></div></div>
+      <div class="nota">${emCasa() ? `+${CASA_ENERGIA_BONUS} energia em ${fmtTempo(prox)}` : 'Volta a casa para recuperar energia.'}</div>
+    </div>${beneficios}`;
+  btn.disabled = false; btn.textContent = 'Ver no mapa';
+  btn.onclick = () => { fecharFolha(); mapa.setView([P.casa.lat, P.casa.lng], 17); };
+}
+$('btnCasa').onclick = abrirCasa;
+
+// =====================================================================
+//  Perfil
+// =====================================================================
+function renderPerfil() {
+  const n = nivel(), c = P.consumo;
+  pintarAvatar($('perfilAvatar'), P);
+  $('perfilNome').textContent = P.nome;
+  $('perfilPatente').textContent = `${PATENTE} · Nível ${n} · ${P.xp} XP`;
+  const fome = c.diasFome ? ` · ⚠️ ${c.diasFome} dia(s) sem comida` : '';
+  const consumo = !c.proximo
+    ? `A partir do nível ${NIVEL_CONSUMO}: ${CONSUMO_COMIDA} comida + ${CONSUMO_OURO} ouro por dia.`
+    : `Próximo consumo (${fmtRecursos({ comida: CONSUMO_COMIDA, ouro: CONSUMO_OURO })}) em ${fmtTempo(c.proximo - Date.now())}` +
+      (c.semOuro ? ' · ⚠️ POIs parados por falta de ouro' : '') + fome;
+  $('perfilCorpo').innerHTML = `
+    <button class="editar" onclick="abrirEditar()">✏️ Editar nome e avatar</button>
+    <div class="seccao">Missões</div>
+    ${MISSOES.map(m => `<div class="missao${P.missoes[m.id] ? ' feita' : ''}">
+      <span>${P.missoes[m.id] ? '✅' : '⬜'}</span><span class="t">${m.titulo}</span><span class="xp">+${m.xp} XP</span></div>`).join('')}
+    <div class="seccao">Atributos</div>
+    <div class="stats">
+      <div class="stat"><div class="v">${P.energia}/${energiaMax()}</div><div class="r">⚡ Energia</div></div>
+      <div class="stat"><div class="v">+${regenHora()}/h</div><div class="r">⚡ Recuperação</div></div>
+      <div class="stat"><div class="v">${alegria()}</div><div class="r">😊 Alegria</div></div>
+      <div class="stat"><div class="v">${edificios()}/${maxEdificios()}</div><div class="r">🏛️ Edifícios</div></div>
+      <div class="stat"><div class="v">${fmtDist(P.distancia)}</div><div class="r">👣 Distância</div></div>
+      <div class="stat"><div class="v">${P.casa ? '✅' : n >= NIVEL_CASA ? 'por escolher' : `nível ${NIVEL_CASA}`}</div><div class="r">🏠 Casa</div></div>
+    </div>
+    <div class="seccao">Recursos</div>
+    <div class="stats">
+      ${Object.entries(RECURSOS).map(([k, r]) => `<div class="stat"><div class="v">${r.icone} ${P.recursos[k]}</div><div class="r">${r.nome}</div></div>`).join('')}
+    </div>
+    <div class="seccao">Consumo diário</div>
+    <div class="nota">${consumo}</div>
+    <div class="nota">Energia: gastas ${ENERGIA_POR_KM} por km e ${ENERGIA_POR_30MIN_ANEXAR} por cada 30 min a anexar.
+      Alegria 5 → +2/h, alegria 10 → +5/h.</div>`;
+}
+$('btnPerfil').onclick = () => { renderPerfil(); $('perfil').classList.remove('escondido'); };
+
+// ---- Editar nome / avatar (missões) ----
+const edicao = {};
+function abrirEditar() {
+  Object.assign(edicao, { nome: P.nome, avatar: P.avatar, cor: P.cor });
+  $('editNome').value = P.nome;
+  montarEdicao();
+  $('perfil').classList.add('escondido');
+  $('folhaEditar').classList.remove('escondido');
+}
+function montarEdicao() {
+  $('editAvatares').innerHTML = ''; $('editCores').innerHTML = '';
+  AVATARES.forEach(a => {
+    const b = document.createElement('button');
+    b.className = 'opcao' + (a === edicao.avatar ? ' ativa' : ''); b.textContent = a;
+    b.onclick = () => { edicao.avatar = a; montarEdicao(); };
+    $('editAvatares').appendChild(b);
+  });
+  CORES.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'opcao cor' + (c === edicao.cor ? ' ativa' : ''); b.style.background = c;
+    b.onclick = () => { edicao.cor = c; montarEdicao(); };
+    $('editCores').appendChild(b);
+  });
+}
+$('editCancelar').onclick = () => $('folhaEditar').classList.add('escondido');
+$('editGuardar').onclick = () => {
+  const nome = $('editNome').value.trim();
+  if (nome.length < 3) { $('editErro').textContent = 'Mínimo 3 caracteres.'; return; }
+  if (!/^[\p{L}\p{N} _-]+$/u.test(nome)) { $('editErro').textContent = 'Só letras, números, espaço, _ e -.'; return; }
+  $('editErro').textContent = '';
+  const mudouNome = nome !== P.nome, mudouAvatar = edicao.avatar !== P.avatar || edicao.cor !== P.cor;
+  P.nome = nome; P.avatar = edicao.avatar; P.cor = edicao.cor;
+  if (mudouNome) completarMissao('nome');
+  if (mudouAvatar) completarMissao('avatar');
+  guardar();
+  if (marcador) marcador.setIcon(iconeJogador());
+  if (circuloPrecisao) circuloPrecisao.setStyle({ color: P.cor });
+  desenharPois(); desenharCasa();
+  $('folhaEditar').classList.add('escondido');
+  tick();
+};
+$('fecharPerfil').onclick = () => $('perfil').classList.add('escondido');
+$('perfil').onclick = e => { if (e.target === $('perfil')) $('perfil').classList.add('escondido'); };
+$('apagar').onclick = () => {
+  if (!confirm('Apagar este personagem? Perdes todo o progresso.')) return;
+  try { localStorage.removeItem(CHAVE); } catch {}
+  location.reload();
+};
+$('btnCentrar').onclick = () => { if (marcador) mapa.setView(marcador.getLatLng(), Math.max(mapa.getZoom(), 16)); };
+
+// =====================================================================
+//  Arranque
+// =====================================================================
+function iniciarJogo() {
+  $('criacao').classList.add('escondido');
+  $('jogo').classList.remove('escondido');
+  if (!mapa) {
+    mapa = L.map('mapa', { zoomControl: false });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(mapa);
+    const limites = desenharFronteiras();
+    mapa.fitBounds(limites);
+    desenharPois();
+    desenharCasa();
+  }
+  setTimeout(() => mapa.invalidateSize(), 50);
+  if (!P.missoes) P.missoes = {};
+  if (P.anexando === undefined) P.anexando = null;
+  simular(Date.now());
+  atualizarHud();
+  iniciarGps();
+  setInterval(tick, 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+}
+
+if (P) iniciarJogo();
+else { $('criacao').classList.remove('escondido'); montarCriacao(); }
+</script>
+</body>
+</html>

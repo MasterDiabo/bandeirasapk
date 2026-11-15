@@ -1,6 +1,6 @@
 // Service worker: torna o jogo instalável como app e deixa-o abrir com a rede fraca.
 // Estratégia "rede primeiro": vai sempre buscar a versão nova; se não houver rede, usa a última guardada.
-const CACHE = 'bandeiras-v1';
+const CACHE = 'bandeiras-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));

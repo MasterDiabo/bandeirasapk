@@ -127,6 +127,8 @@
     <label class="titulo">Cor</label>
     <div class="grelha" id="cores"></div>
     <button class="principal" id="entrar" disabled>Entrar no mapa</button>
+    <button class="principal escondido" id="instalar" style="background:var(--verde);color:#fff">📲 Instalar como app</button>
+    <div class="erro" id="estadoInstalar" style="color:var(--suave)"></div>
   </div>
 </section>
 
@@ -161,6 +163,7 @@
     <button class="redondo" id="btnCiencia" title="Ciência">🔬</button>
     <button class="redondo" id="btnPerfil" title="Perfil e missões">👤<span class="badge escondido" id="badge"></span></button>
     <button class="redondo" id="btnCentrar" title="Centrar em mim">◎</button>
+    <button class="redondo escondido" id="btnInstalar" title="Instalar como app" onclick="instalar()">📲</button>
   </div>
 </section>
 
@@ -908,7 +911,24 @@ function iniciarJogo() {
 }
 if (P) iniciarJogo(); else { $('criacao').classList.remove('escondido'); montarCriacao(); }
 // Service worker: necessário para o telemóvel oferecer "Instalar app"
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js')
+  .then(() => { $('estadoInstalar').textContent = 'Instalação: service worker ativo · à espera do Chrome…'; })
+  .catch(e => { $('estadoInstalar').textContent = 'Instalação: o service worker falhou (' + e.message + ')'; });
+// Botão "Instalar" com o pedido do próprio Chrome (só aparece quando a página é instalável)
+let pedidoInstalar = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); pedidoInstalar = e;
+  $('instalar').classList.remove('escondido'); $('estadoInstalar').textContent = '';
+  if ($('btnInstalar')) $('btnInstalar').classList.remove('escondido');
+});
+const instalar = async () => {
+  if (!pedidoInstalar) return;
+  pedidoInstalar.prompt(); await pedidoInstalar.userChoice; pedidoInstalar = null;
+  $('instalar').classList.add('escondido'); if ($('btnInstalar')) $('btnInstalar').classList.add('escondido');
+};
+$('instalar').onclick = instalar;
+window.addEventListener('appinstalled', () => aviso('📲 Instalado! Abre pelo ícone Bandeiras'));
+if (matchMedia('(display-mode: standalone)').matches) $('estadoInstalar').textContent = '';
 </script>
 </body>
 </html>

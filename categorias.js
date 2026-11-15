@@ -10,6 +10,7 @@ const RECURSOS = {
   ferro:   { nome: 'ferro',   icone: '🔩' },
   madeira: { nome: 'madeira', icone: '🪵' },
   ciencia: { nome: 'ciência', icone: '🔬' },
+  pao:     { nome: 'pão',     icone: '🥖' },   // só Humanos (moinho): conta no espaço da comida
 };
 
 // Quantos POIs de cada categoria há por concelho (as que não aparecem aqui não têm limite).
@@ -37,8 +38,10 @@ const nomeTem = (t, re) => !!t.name && re.test(t.name) && !NAO_E_NEGOCIO(t);
 //   Portugal: Património Mundial (heritage=1) ou "Monumento Nacional"
 //   Irlanda: património nacional (heritage=2, registo SMR) — lá não há protection_title
 //            (em Portugal os heritage=2 têm sempre título, ex.: "Imóvel de Interesse Público", e não entram)
-const eMonumento = t => t.heritage === '1' || /monumento nacional|national monument/i.test(t.protection_title || '') ||
-  (t.heritage === '2' && !t.protection_title && !!t.name);
+// (as "Zonas Especiais de Proteção" à volta de um monumento não são monumentos)
+const eMonumento = t => !/^zona (especial )?de prote[cç][aã]o|^ZEP\b/i.test(t.name || '') &&
+  (t.heritage === '1' || /monumento nacional|national monument/i.test(t.protection_title || '') ||
+  (t.heritage === '2' && !t.protection_title && !!t.name));
 
 // Cada categoria:
 //   horasAnexar · cicloHoras (de quanto em quanto tempo produz) · produz (por ciclo)
@@ -62,10 +65,11 @@ const CATEGORIAS = [
     id: 'monumento', nome: 'Monumento nacional', icone: '🏛️', cor: '#b58b2a',
     horasAnexar: 1, cicloHoras: 24, produz: { ouro: 3 }, maxCiclos: 7,
     teste: t => eMonumento(t),
-    // Os mais emblemáticos são escolhidos primeiro: Património Mundial > palácios e castelos > conventos e mosteiros
+    // Os mais emblemáticos são escolhidos primeiro: Património Mundial > templos, sés e cromeleques > palácios e castelos > conventos e mosteiros
     // (Irlanda: castelos, palácios e casas senhoriais > abadias, catedrais e torres redondas; "site of" = já não existe → último)
     prioridade: t => t.heritage === '1' ? 3
       : /\bsite of\b/i.test(t.name || '') ? 0
+      : /^(templo|s[ée]\b|catedral|cromeleque)/i.test(t.name || '') ? 2.5   // ex.: Templo Romano e Cromeleque dos Almendres (Évora)
       : /^(pal[aá]cio|castelo)|\b(castle|palace)\b|\bhouse$/i.test(t.name || '') ? 2
       : /^(convento|mosteiro)|\b(abbey|priory|cathedral|round tower)\b/i.test(t.name || '') ? 1 : 0,
   },
@@ -117,7 +121,7 @@ const CATEGORIAS = [
   },
   {
     // ⚠️ proposta: 1 ferro + 1 madeira a cada 2 h (o mesmo ritmo total de uma oficina)
-    id: 'ferragens', nome: 'Loja de ferragens / bricolage', icone: '🧰', cor: '#5f6b3a',
+    id: 'ferragens', nome: 'Loja de ferragens / bricolage', icone: '🛠️', cor: '#5f6b3a',
     horasAnexar: 8, cicloHoras: 2, produz: { ferro: 1, madeira: 1 }, maxCiclos: 2,
     teste: t => t.shop === 'hardware' || t.shop === 'doityourself',
   },

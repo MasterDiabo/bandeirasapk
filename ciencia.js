@@ -46,15 +46,211 @@ const RAMOS_CIENCIA = {
   },
 };
 
-// Bónus total de um jogador. `niveis` = { vigor: 0..5, folego: 0..5, economia: 0..5 }
+// =====================================================================
+//  Árvores das FAÇÕES: a partir do nível 11 (depois de escolher a fação), juntam-se à básica.
+//  Cada fação tem os seus ramos, também até ao nível 5. Mais caras e mais lentas.
+// =====================================================================
+const NIVEIS_CIENCIA_FACAO = [
+  { nivelJogador: 11, ciencia: 350,  horas: 24 },
+  { nivelJogador: 12, ciencia: 500,  horas: 48 },
+  { nivelJogador: 14, ciencia: 700,  horas: 96 },
+  { nivelJogador: 16, ciencia: 950,  horas: 144 },
+  { nivelJogador: 18, ciencia: 1250, horas: 192 },
+];
+const ARVORES_FACAO = {
+  // 🌾 Humanos: agricultura e produção
+  humanos: {
+    colheita: {
+      nome: 'Colheita', icone: '🌾',
+      descricao: 'Os POIs produzem mais comida, pedra, ferro e madeira (o ouro e a ciência não).',
+      niveis: [0.04, 0.08, 0.12, 0.16, 0.20],   // produção extra nos POIs
+    },
+    oficios: {
+      nome: 'Ofícios', icone: '🔨',
+      descricao: 'Novas construções em casa: o moinho, o nível 4 das construções de produção e mais um espaço fora de casa.',
+      niveis: ['🌀 Moinho', '🌾 Quinta nível 4', '🪨🪵🔩 Fábrica de pedra, serração e serralharia nível 4', '🌀 Moinho nível 2', '+1 espaço fora de casa'],
+    },
+    resistencia: {
+      nome: 'Resistência', icone: '🥾',
+      descricao: 'Gasta menos energia a anexar e as obras demoram menos (mão-de-obra).',
+      niveis: [
+        { energiaAnexar: 0.10, tempoObra: 0.05 },
+        { energiaAnexar: 0.20, tempoObra: 0.10 },
+        { energiaAnexar: 0.30, tempoObra: 0.15 },
+        { energiaAnexar: 0.40, tempoObra: 0.20 },
+        { energiaAnexar: 0.50, tempoObra: 0.25 },
+      ],
+    },
+    lar: {
+      nome: 'Lar', icone: '🏡',
+      descricao: 'Celeiro: o frigorífico guarda mais · Turnos: as construções de produção acumulam mais horas · Cão de guarda: pode ter 1 cão, que às vezes defende a casa de um roubo.',
+      niveis: [
+        { frigorifico: 0.15, horasProducao: 3,  defesaCao: 0.02 },
+        { frigorifico: 0.30, horasProducao: 6,  defesaCao: 0.03 },
+        { frigorifico: 0.45, horasProducao: 9,  defesaCao: 0.04 },
+        { frigorifico: 0.60, horasProducao: 12, defesaCao: 0.05 },
+        { frigorifico: 0.75, horasProducao: 12, defesaCao: 0.06 },   // turnos: no máximo 24 h
+      ],
+    },
+  },
+};
+// 🌿 Elfos: natureza. Ao escolher a fação não muda nada; tudo vem desta árvore.
+ARVORES_FACAO.elfos = {
+  trilho: {
+    nome: 'Trilho', icone: '🌲',
+    descricao: 'Ganha madeira a andar dentro de matas, pinhais e parques, e ciência por cada 10 km andados (em qualquer lado).',
+    niveis: [
+      { metrosPorMadeira: 1000, cienciaPor10km: 2 },
+      { metrosPorMadeira: 900,  cienciaPor10km: 3 },
+      { metrosPorMadeira: 800,  cienciaPor10km: 3 },
+      { metrosPorMadeira: 700,  cienciaPor10km: 4 },
+      { metrosPorMadeira: 500,  cienciaPor10km: 5 },
+    ],
+  },
+  guardioes: {
+    nome: 'Guardiões', icone: '🏛️',
+    descricao: 'Os monumentos ganham níveis (+25% de produção por nível) e os monumentos grandes (ex.: Tapada de Mafra) dão mais alegria. Em troca, os outros POIs demoram +50% a anexar (os monumentos não).',
+    niveis: [
+      { nivelMonumento: 2, alegriaGrande: 2 },
+      { nivelMonumento: 3, alegriaGrande: 2 },
+      { nivelMonumento: 4, alegriaGrande: 3 },
+      { nivelMonumento: 5, alegriaGrande: 3 },
+      { nivelMonumento: 6, alegriaGrande: 3 },
+    ],
+    anexarOutros: 1.5,          // os POIs que não são monumentos demoram +50% a anexar
+    producaoPorNivel: 0.25,     // +25% de produção do monumento por cada nível acima do 1
+  },
+  esconderijo: {
+    nome: 'Esconderijo', icone: '🍂',
+    descricao: 'Esconde recursos numa mata: não contam para o armazenamento e só lá vais buscá-los a pé. Outro jogador só os encontra se ficar 5 min a menos de 50 m.',
+    niveis: [
+      { capacidade: 50,  esconderijos: 1 },
+      { capacidade: 100, esconderijos: 1 },
+      { capacidade: 150, esconderijos: 1 },
+      { capacidade: 200, esconderijos: 1 },
+      { capacidade: 300, esconderijos: 2 },
+    ],
+  },
+  frugal: {
+    nome: 'Frugal', icone: '🍃',
+    descricao: 'A pedra e o ferro das construções passam a pagar-se em madeira (exceto a casa nível 3 e as melhorias dos monumentos). Comem menos, e andar 20 km num dia dá alegria durante 24 h (não acumula).',
+    niveis: [
+      { comidaDia: 3.6, alegria20km: 2 },
+      { comidaDia: 3.2, alegria20km: 2 },
+      { comidaDia: 2.8, alegria20km: 3 },
+      { comidaDia: 2.4, alegria20km: 3 },
+      { comidaDia: 2,   alegria20km: 4 },
+    ],
+  },
+};
+// 💰 Gnomos: comércio e ouro. Ao escolher não muda nada; tudo vem desta árvore (5 ramos).
+ARVORES_FACAO.gnomos = {
+  tesouro: {
+    nome: 'Tesouro', icone: '💰',
+    descricao: 'Todo o ouro produzido rende mais: POIs, bancos, casa e monumentos (não conta nas vendas da feira nem nos juros).',
+    niveis: [0.05, 0.10, 0.15, 0.20, 0.25],
+  },
+  mercador: {
+    nome: 'Mercador', icone: '⚖️',
+    descricao: 'As construções pedem menos pedra, ferro e madeira; cada unidade que deixa de ser pedida custa +10 de ouro.',
+    niveis: [0.10, 0.20, 0.30, 0.40, 0.50],
+    ouroPorMaterial: 10,
+  },
+  feirante: {
+    nome: 'Feirante', icone: '🎪',
+    descricao: 'As tuas vendas na feira rendem mais. Se fores o Gnomo com mais horas numa feira, controla-la: recebes uma parte de todo o ouro que os OUTROS vendem e compram lá.',
+    niveis: [
+      { venda: 0.05, taxa: 0.05 },
+      { venda: 0.10, taxa: 0.06 },
+      { venda: 0.15, taxa: 0.07 },
+      { venda: 0.20, taxa: 0.08 },
+      { venda: 0.25, taxa: 0.10 },
+    ],
+  },
+  banca: {
+    nome: 'Banca', icone: '🏦',
+    descricao: 'Com um banco anexado, emprestas ouro durante 7 dias e recebes de volta com juros. Por agora empresta-se à cidade (sem risco).',
+    niveis: [
+      { juro: 0.05, maxPorBanco: 200 },
+      { juro: 0.07, maxPorBanco: 400 },
+      { juro: 0.09, maxPorBanco: 600 },
+      { juro: 0.11, maxPorBanco: 800 },
+      { juro: 0.15, maxPorBanco: 1000 },
+    ],
+    dias: 7,
+  },
+  submundo: {
+    nome: 'Submundo', icone: '🗝️',
+    descricao: 'Contrata ladrões (150 de ouro) para roubar a casa de outro jogador, com as regras normais do roubo. O ladrão demora 2 h e fica com uma parte.',
+    niveis: [
+      { ladroesDia: 1, parteLadrao: 0.40 },
+      { ladroesDia: 1, parteLadrao: 0.35 },
+      { ladroesDia: 2, parteLadrao: 0.30 },
+      { ladroesDia: 2, parteLadrao: 0.25 },
+      { ladroesDia: 3, parteLadrao: 0.20 },
+    ],
+    custo: { ouro: 150 }, horas: 2,
+  },
+};
+
+// Esconderijos: só se criam numa mata/pinhal/parque. Outro jogador encontra-o se ficar ESCONDERIJO.minutos a menos de ESCONDERIJO.raioM
+// (aparece-lhe um pontinho a dizer que há lá qualquer coisa); aí pode roubar o que lá estiver. O dono vai buscar a menos de 30 m.
+const ESCONDERIJO = { raioM: 50, minutos: 5, raioDonoM: 30, guarda: ['comida', 'pao', 'pedra', 'ferro', 'madeira'] };
+
+// Ramos que um jogador pode investigar (os básicos + os da sua fação)
+const ramosDe = facao => ({ ...RAMOS_CIENCIA, ...(ARVORES_FACAO[facao] || {}) });
+const ramoDeFacao = ramo => Object.values(ARVORES_FACAO).some(a => a[ramo]);
+
+// Bónus total de um jogador. `niveis` = { vigor: 0..5, folego: 0..5, economia: 0..5, (ramos da fação) }
 function bonusCiencia(niveis = {}) {
   const nv = id => niveis[id] || 0;
   const eco = nv('economia') ? RAMOS_CIENCIA.economia.niveis[nv('economia') - 1] : { descontoOuro: 0, descontoMateriais: 0 };
+  const H = ARVORES_FACAO.humanos;
+  const res = nv('resistencia') ? H.resistencia.niveis[nv('resistencia') - 1] : { energiaAnexar: 0, tempoObra: 0 };
+  const lar = nv('lar') ? H.lar.niveis[nv('lar') - 1] : { frigorifico: 0, horasProducao: 0, defesaCao: 0 };
   return {
     chanceExtraRoubo: nv('vigor') ? RAMOS_CIENCIA.vigor.niveis[nv('vigor') - 1] : 0,
     regenEmCasa: nv('folego') ? RAMOS_CIENCIA.folego.niveis[nv('folego') - 1] : REGEN_BASE,
     descontoOuro: eco.descontoOuro,
     descontoMateriais: eco.descontoMateriais,
+    // Humanos
+    producaoPoi: nv('colheita') ? H.colheita.niveis[nv('colheita') - 1] : 0,
+    oficios: nv('oficios'),
+    espacosForaExtra: nv('oficios') >= 5 ? 1 : 0,
+    energiaAnexar: res.energiaAnexar,
+    tempoObra: res.tempoObra,
+    frigorificoExtra: lar.frigorifico,
+    horasProducaoExtra: lar.horasProducao,
+    defesaCao: lar.defesaCao,
+    // Elfos
+    ...bonusElfos(nv),
+    // Gnomos
+    ...bonusGnomos(nv),
+  };
+}
+function bonusGnomos(nv) {
+  const G = ARVORES_FACAO.gnomos, de = (r, def) => nv(r) ? G[r].niveis[nv(r) - 1] : def;
+  const f = de('feirante', { venda: 0, taxa: 0 }), b = de('banca', { juro: 0, maxPorBanco: 0 }), s = de('submundo', { ladroesDia: 0, parteLadrao: 0 });
+  return {
+    ouroExtra: de('tesouro', 0),
+    descontoMateriaisOuro: de('mercador', 0),
+    vendaFeiraExtra: f.venda, taxaFeira: f.taxa,
+    juroEmprestimo: b.juro, maxEmprestimoPorBanco: b.maxPorBanco,
+    ladroesDia: s.ladroesDia, parteLadrao: s.parteLadrao,
+  };
+}
+function bonusElfos(nv) {
+  const E = ARVORES_FACAO.elfos, de = (r, def) => nv(r) ? E[r].niveis[nv(r) - 1] : def;
+  const t = de('trilho', { metrosPorMadeira: 0, cienciaPor10km: 0 });
+  const g = de('guardioes', { nivelMonumento: 1, alegriaGrande: 0 });
+  const e = de('esconderijo', { capacidade: 0, esconderijos: 0 });
+  const f = de('frugal', { comidaDia: null, alegria20km: 0 });
+  return {
+    metrosPorMadeira: t.metrosPorMadeira, cienciaPor10km: t.cienciaPor10km,
+    nivelMonumentoMax: g.nivelMonumento, alegriaMonumentoGrande: g.alegriaGrande,
+    anexarOutrosMult: nv('guardioes') ? E.guardioes.anexarOutros : 1,
+    capacidadeEsconderijo: e.capacidade, esconderijos: e.esconderijos,
+    madeiraEmVezDePedraFerro: nv('frugal') > 0, comidaDia: f.comidaDia, alegria20km: f.alegria20km,
   };
 }
 
@@ -79,6 +275,6 @@ function extraVigor(niveis, vitima, sorte1 = Math.random(), sorte2 = Math.random
 function proximaCiencia(ramo, niveis, nivelJogador) {
   const atual = niveis[ramo] || 0;
   if (atual >= NIVEL_MAX_RAMO) return null;
-  const nv = NIVEIS_CIENCIA[atual];
+  const nv = (ramoDeFacao(ramo) ? NIVEIS_CIENCIA_FACAO : NIVEIS_CIENCIA)[atual];
   return nivelJogador >= nv.nivelJogador ? { ramo, nivel: atual + 1, ...nv } : null;
 }

@@ -118,7 +118,7 @@
 <section id="criacao" class="escondido">
   <div class="cartao">
     <h1>Bandeiras</h1>
-    <p class="sub">Jogo completo (teste) · Sintra, Mafra e Torres Vedras. Começas no nível 0: explora, reconhece e anexa sítios reais. Aceita o pedido de localização.</p>
+    <p class="sub">Jogo completo (teste) · Sintra, Mafra, Torres Vedras e Kildare (Irlanda). Começas no nível 0: explora, reconhece e anexa sítios reais. Aceita o pedido de localização.</p>
     <label class="titulo" for="nome">Nome de código</label>
     <input id="nome" type="text" maxlength="16" placeholder="ex.: Falcão" autocomplete="off">
     <div class="erro" id="erroNome"></div>
@@ -328,6 +328,9 @@ function moverPara(latlng, precisao = 0) {
     if (!modoTeste) {
       if (d <= Math.max(5, precisao / 2)) { tick(); return; }   // tremor do GPS: ignora
       if (d >= 500) { posAtual = latlng; P.pos = [latlng.lat, latlng.lng]; marcador && marcador.setLatLng(latlng); tick(); return; }   // salto (GPS perdido): não conta
+    } else if (d > 5000) {
+      // modo de teste: mais de 5 km de uma vez é um teletransporte (ex.: ir de Portugal à Irlanda) e não conta como andado
+      posAtual = latlng; P.pos = [latlng.lat, latlng.lng]; marcador && marcador.setLatLng(latlng); tick(); return;
     }
     P.distancia += d;
     const km = Math.floor(P.distancia / 1000);

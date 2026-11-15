@@ -33,7 +33,12 @@ const RAIO_TROCOS_M = 30;   // num monumento grande feito de troços (aqueduto, 
 const NAO_E_NEGOCIO = t => t.highway || t.place || t.natural || t.landuse || t.boundary ||
   t.leisure || t.man_made === 'survey_point' || (t.tourism && !t.craft && !t.shop);
 const nomeTem = (t, re) => !!t.name && re.test(t.name) && !NAO_E_NEGOCIO(t);
-const eMonumento = t => t.heritage === '1' || /monumento nacional/i.test(t.protection_title || '');
+// Monumentos:
+//   Portugal: Património Mundial (heritage=1) ou "Monumento Nacional"
+//   Irlanda: património nacional (heritage=2, registo SMR) — lá não há protection_title
+//            (em Portugal os heritage=2 têm sempre título, ex.: "Imóvel de Interesse Público", e não entram)
+const eMonumento = t => t.heritage === '1' || /monumento nacional|national monument/i.test(t.protection_title || '') ||
+  (t.heritage === '2' && !t.protection_title && !!t.name);
 
 // Cada categoria:
 //   horasAnexar · cicloHoras (de quanto em quanto tempo produz) · produz (por ciclo)
@@ -58,7 +63,11 @@ const CATEGORIAS = [
     horasAnexar: 1, cicloHoras: 24, produz: { ouro: 3 }, maxCiclos: 7,
     teste: t => eMonumento(t),
     // Os mais emblemáticos são escolhidos primeiro: Património Mundial > palácios e castelos > conventos e mosteiros
-    prioridade: t => t.heritage === '1' ? 3 : /^(pal[aá]cio|castelo)/i.test(t.name || '') ? 2 : /^(convento|mosteiro)/i.test(t.name || '') ? 1 : 0,
+    // (Irlanda: castelos, palácios e casas senhoriais > abadias, catedrais e torres redondas; "site of" = já não existe → último)
+    prioridade: t => t.heritage === '1' ? 3
+      : /\bsite of\b/i.test(t.name || '') ? 0
+      : /^(pal[aá]cio|castelo)|\b(castle|palace)\b|\bhouse$/i.test(t.name || '') ? 2
+      : /^(convento|mosteiro)|\b(abbey|priory|cathedral|round tower)\b/i.test(t.name || '') ? 1 : 0,
   },
   {
     // Ciência que se vai buscar de vez em quando: acumula até uma semana
@@ -92,19 +101,19 @@ const CATEGORIAS = [
   {
     id: 'pedra', nome: 'Oficina de pedra', icone: '🪨', cor: '#7d7f86',
     horasAnexar: 8, cicloHoras: 1, produz: { pedra: 1 }, maxCiclos: 4,
-    teste: t => t.craft === 'stonemason' || nomeTem(t, /m[aá]rmore|granito|cantaria/i),
+    teste: t => t.craft === 'stonemason' || nomeTem(t, /m[aá]rmore|granito|cantaria|marble|granite|stone ?works|stonemason|quarry products/i),
   },
   {
     id: 'metal', nome: 'Serralharia de metais', icone: '🔩', cor: '#4a6a8a',
     horasAnexar: 8, cicloHoras: 1, produz: { ferro: 1 }, maxCiclos: 4,
     teste: t => ['metal_construction', 'blacksmith', 'welder'].includes(t.craft) ||
-      nomeTem(t, /serralharia|metal[uú]rgica|metalomec/i),
+      nomeTem(t, /serralharia|metal[uú]rgica|metalomec|steel|metal ?works|fabricat|welding|engineering works/i),
   },
   {
     id: 'madeira', nome: 'Serralharia de madeira (carpintaria)', icone: '🪵', cor: '#8a5a2b',
     horasAnexar: 8, cicloHoras: 1, produz: { madeira: 1 }, maxCiclos: 4,
     teste: t => ['carpenter', 'joiner', 'sawmill', 'cabinet_maker'].includes(t.craft) ||
-      nomeTem(t, /carpintaria|marcenaria|serra[cç][aã]o|madeiras/i),
+      nomeTem(t, /carpintaria|marcenaria|serra[cç][aã]o|madeiras|joinery|carpentry|timber|sawmill|woodwork/i),
   },
   {
     // ⚠️ proposta: 1 ferro + 1 madeira a cada 2 h (o mesmo ritmo total de uma oficina)

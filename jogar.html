@@ -907,6 +907,8 @@ function iniciarJogo() {
   setTimeout(() => mapa.invalidateSize(), 50);
 }
 if (P) iniciarJogo(); else { $('criacao').classList.remove('escondido'); montarCriacao(); }
+// Service worker: necessário para o telemóvel oferecer "Instalar app"
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
 </html>

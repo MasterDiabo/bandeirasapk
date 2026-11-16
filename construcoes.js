@@ -13,14 +13,20 @@ const FACOES = {
   humanos: {
     nome: 'Humanos', icone: '🌾', lema: 'Agricultura e produção',
     arvore: 'POIs produzem mais, moinho e pão, construções de produção nível 4, cão de guarda.',
+    bom: 'Produzem mais em todo o lado (POIs e construções). Constroem mais coisas e mais depressa, e o pão resolve a comida. Gastam menos energia a anexar.',
+    mau: 'Dependem de POIs e de construções: precisam de muitos materiais e de passar tempo em casa. Não ganham ouro extra nem nada por andar.',
   },
   elfos: {
     nome: 'Elfos', icone: '🌿', lema: 'Natureza',
     arvore: 'Madeira e ciência a andar, monumentos com níveis, esconderijos na mata, comem menos.',
+    bom: 'Ganham madeira e ciência só por andar. Os monumentos ficam mais fortes e dão mais alegria. Comem menos e quase não precisam de pedra nem ferro. Escondem recursos na mata.',
+    mau: 'Os POIs que não são monumentos demoram +50% a anexar. Rendem pouco longe de matas, parques e monumentos. Pouco ouro.',
   },
   gnomos: {
     nome: 'Gnomos', icone: '💰', lema: 'Comércio',
     arvore: 'Mais ouro, construções com mais ouro e menos materiais, controlar feiras, empréstimos, contratar ladrões.',
+    bom: 'Muito ouro: produção, empréstimos com juros e vendas mais caras na feira. Constroem com poucos materiais (pagam em ouro). Têm mais um ramo que as outras fações.',
+    mau: 'As construções ficam bem mais caras em ouro. Precisam de bancos e feiras por perto (rendem mais nas cidades). Controlar feiras e contratar ladrões só valem quando houver outros jogadores.',
   },
 };
 

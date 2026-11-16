@@ -193,6 +193,34 @@ ARVORES_FACAO.gnomos = {
   },
 };
 
+// Texto curto do efeito de cada nível de um ramo das fações (para mostrar nas missões e menus)
+const pct = v => Math.round(v * 100) + '%';
+const EFEITO_RAMO = {
+  // Humanos
+  colheita:    v => `POIs produzem +${pct(v)} de comida, pedra, ferro e madeira`,
+  oficios:     v => `desbloqueia: ${v}`,
+  resistencia: v => `anexar gasta −${pct(v.energiaAnexar)} de energia · obras −${pct(v.tempoObra)} de tempo`,
+  lar:         v => `frigorífico +${pct(v.frigorifico)} · construções acumulam +${v.horasProducao} h · cão defende ${pct(v.defesaCao)} dos roubos`,
+  // Elfos
+  trilho:      v => `1 🪵 a cada ${v.metrosPorMadeira} m em matas e parques · ${v.cienciaPor10km} 🔬 por cada 10 km`,
+  guardioes:   v => `monumentos até nível ${v.nivelMonumento} (+25% por nível) · monumento grande dá +${v.alegriaGrande} alegria · outros POIs +50% de tempo a anexar`,
+  esconderijo: v => `${v.esconderijos} esconderijo na mata com ${v.capacidade} de espaço`,
+  frugal:      v => `pedra e ferro pagos em madeira · comida ${v.comidaDia}/dia · 20 km num dia = +${v.alegria20km} alegria`,
+  // Gnomos
+  tesouro:     v => `ouro produzido +${pct(v)}`,
+  mercador:    v => `construções com −${pct(v)} de materiais (+10 🪙 por unidade a menos)`,
+  feirante:    v => `vendas na feira +${pct(v.venda)} · controlar uma feira dá ${pct(v.taxa)} do ouro dos outros`,
+  banca:       v => `empréstimos a ${pct(v.juro)} em 7 dias, até ${v.maxPorBanco} 🪙 por banco`,
+  submundo:    v => `${v.ladroesDia} ladrão por dia (150 🪙), fica com ${pct(v.parteLadrao)} do roubo`,
+};
+// Os primeiros `ateNivel` níveis de cada ramo de uma fação: [{ icone, nome, descricao, niveis: [texto, ...] }]
+function resumoArvore(facao, ateNivel = 2) {
+  return Object.entries(ARVORES_FACAO[facao] || {}).map(([id, r]) => ({
+    icone: r.icone, nome: r.nome, descricao: r.descricao,
+    niveis: r.niveis.slice(0, ateNivel).map((v, i) => ({ nivel: i + 1, texto: EFEITO_RAMO[id](v), custo: NIVEIS_CIENCIA_FACAO[i] })),
+  }));
+}
+
 // Esconderijos: só se criam numa mata/pinhal/parque. Outro jogador encontra-o se ficar ESCONDERIJO.minutos a menos de ESCONDERIJO.raioM
 // (aparece-lhe um pontinho a dizer que há lá qualquer coisa); aí pode roubar o que lá estiver. O dono vai buscar a menos de 30 m.
 const ESCONDERIJO = { raioM: 50, minutos: 5, raioDonoM: 30, guarda: ['comida', 'pao', 'pedra', 'ferro', 'madeira'] };

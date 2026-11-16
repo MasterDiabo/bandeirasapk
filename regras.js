@@ -88,25 +88,25 @@ const MISSOES = [
   { id: 'fotoElfos',   nivel: 5, facao: 'elfos',   tipo: 'foto', xp: 30, recursos: { ouro: 20 },   // ⚠️ recompensa proposta
     titulo: 'Fotografar um pinhal, bosque ou parque',
     local: t => t.natural === 'wood' || t.landuse === 'forest' || (t.leisure === 'park' && !!t.name),
-    texto: 'Os Elfos vivem da natureza. (explicação de como é jogar como Elfo)' },
+    texto: 'Os Elfos vivem da natureza.' },   // o jogo junta o bom e o mau da fação (FACOES em construcoes.js)
   { id: 'fotoGnomos',  nivel: 5, facao: 'gnomos',  tipo: 'foto', xp: 30, recursos: { ouro: 20 },
     titulo: 'Fotografar um centro comercial',
     local: t => t.shop === 'mall',
-    texto: 'Os Gnomos vivem do comércio. (explicação de como é jogar como Gnomo)' },
+    texto: 'Os Gnomos vivem do comércio e do ouro.' },
   { id: 'fotoHumanos', nivel: 5, facao: 'humanos', tipo: 'foto', xp: 30, recursos: { ouro: 20 },
     titulo: 'Fotografar um moinho ou uma quinta',
     // moinhos (há mais de 200 na zona, muitos visitáveis) · quintas com nome · campos, pomares, vinhas
     local: t => t.man_made === 'windmill' || (t.place === 'farm' && !!t.name) || ['farmland', 'orchard', 'vineyard'].includes(t.landuse),
-    texto: 'Os Humanos vivem da agricultura e da produção. (explicação de como é jogar como Humano)' },
+    texto: 'Os Humanos vivem da agricultura e da produção.' },
 
   // Nível 6: pagar OURO para estudar cada fação (uma pesquisa por fação, 150 de ouro cada).
-  // Mostra uma parte da árvore de ciência dessa fação (as árvores são diferentes a partir do nível 10).
+  // Mostra os 2 primeiros níveis de cada ramo da árvore de ciência dessa fação (a partir do nível 11), e o bom e o mau.
   { id: 'estudarElfos',   nivel: 6, facao: 'elfos',   tipo: 'pesquisa', custo: { ouro: 150 }, xp: 30,   // ⚠️ XP proposto
-    titulo: 'Estudar os Elfos',   texto: 'Mostra uma parte da árvore de ciência dos Elfos.' },
+    titulo: 'Estudar os Elfos',   texto: 'Mostra os primeiros níveis da árvore de ciência dos Elfos.' },
   { id: 'estudarGnomos',  nivel: 6, facao: 'gnomos',  tipo: 'pesquisa', custo: { ouro: 150 }, xp: 30,
-    titulo: 'Estudar os Gnomos',  texto: 'Mostra uma parte da árvore de ciência dos Gnomos.' },
+    titulo: 'Estudar os Gnomos',  texto: 'Mostra os primeiros níveis da árvore de ciência dos Gnomos.' },
   { id: 'estudarHumanos', nivel: 6, facao: 'humanos', tipo: 'pesquisa', custo: { ouro: 150 }, xp: 30,
-    titulo: 'Estudar os Humanos', texto: 'Mostra uma parte da árvore de ciência dos Humanos.' },
+    titulo: 'Estudar os Humanos', texto: 'Mostra os primeiros níveis da árvore de ciência dos Humanos.' },
 
   // Níveis 7, 8 e 9: em cada nível escolhe UMA fação ainda não feita e cumpre uma de duas coisas:
   // fazer uma construção ligada a ela OU anexar/reconhecer um POI ligado a ela. Ao nível 9 já fez as três.

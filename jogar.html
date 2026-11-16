@@ -26,6 +26,7 @@
 
   #criacao { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
   .cartao { width: 100%; max-width: 420px; background: var(--painel); border: 1px solid var(--borda); border-radius: 16px; padding: 24px; }
+  .logotipo { display: block; width: 180px; height: 180px; margin: -6px auto 8px; border-radius: 50%; }
   h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: 1px; text-transform: uppercase; color: var(--acento); }
   .sub { margin: 0 0 20px; color: var(--suave); font-size: 14px; }
   label.titulo { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--suave); margin: 18px 0 8px; }
@@ -84,16 +85,17 @@
     font-size: 20px; border: 3px solid #888; background: #2a3121; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
   .pinpoi .etiqueta { top: 40px; }
   .falta { color: #ef8a7f; font-weight: 600; }   /* custo: o que falta */
-  /* POIs: emoji do tipo num círculo da cor da categoria. Rebordo: escuro = desconhecido, branco = reconhecido, cor do jogador = teu */
+  /* POIs: emoji grande do tipo num círculo claro, com rebordo grosso da cor da categoria (assim lê-se bem no mapa).
+     Estado: desconhecido = só o rebordo; reconhecido = anel branco por fora; teu = rebordo da cor do jogador e maior */
   .pe { background: none; border: none; }
-  .pe div { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px;
-    border: 2px solid #111; box-shadow: 0 1px 4px rgba(0,0,0,.55); transition: transform .15s; }
-  .pe .rec { border-color: #fff; }
-  .pe .meu { border-width: 4px; transform: scale(1.2); }
-  .longe .pe div { transform: scale(.65); }
-  .longe .pe .meu { transform: scale(.8); }
-  .muitoLonge .pe div { transform: scale(.45); }
-  .muitoLonge .pe .meu { transform: scale(.6); }
+  .pe div { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 21px; line-height: 1;
+    background: #f6f2e4; border: 3px solid #888; box-shadow: 0 0 0 1.5px #111, 0 2px 5px rgba(0,0,0,.6); transition: transform .15s; }
+  .pe .rec { box-shadow: 0 0 0 2.5px #fff, 0 0 0 4px #111, 0 2px 5px rgba(0,0,0,.6); }
+  .pe .meu { border-width: 5px; transform: scale(1.2); box-shadow: 0 0 0 2.5px #fff, 0 0 0 4px #111, 0 2px 5px rgba(0,0,0,.6); }
+  .longe .pe div { transform: scale(.85); }
+  .longe .pe .meu { transform: scale(1); }
+  .muitoLonge .pe div { transform: scale(.65); }
+  .muitoLonge .pe .meu { transform: scale(.8); }
 
   .fundo { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; }
   .folha { width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; background: var(--painel); border: 1px solid var(--borda);
@@ -114,7 +116,7 @@
   .acoes { display: flex; gap: 10px; margin-top: 16px; }
   .acoes button, .btn { flex: 1; padding: 11px; border-radius: 10px; border: 1px solid var(--borda); background: var(--painel2); color: var(--texto); }
   .acoes .perigo { border-color: var(--perigo); color: #f0a09d; }
-  .escolhaCasa { position: absolute; left: 12px; right: 12px; bottom: 84px; z-index: 1100; background: rgba(31,36,24,.96);
+  .escolhaCasa { position: absolute; left: 12px; right: 12px; top: 150px; z-index: 1100; background: rgba(31,36,24,.96);
     border: 1px solid var(--acento); border-radius: 12px; padding: 12px; color: var(--texto); font-size: 13px; line-height: 1.4; }
   .escolhaCasa .acoes { margin-top: 10px; }
   .ok { background: var(--acento) !important; border-color: var(--acento) !important; color: #1a1a0f !important; font-weight: 700; }
@@ -132,7 +134,7 @@
 
 <section id="criacao" class="escondido">
   <div class="cartao">
-    <h1>Bandeiras</h1>
+    <img class="logotipo" src="logotipo.png" alt="Bandeiras · Explora · Reconhece · Anexa">
     <p class="sub">Jogo completo (teste) · Sintra, Mafra, Torres Vedras, Loures, Lisboa, Almada, Évora e Kildare (Irlanda). Começas no nível 0: explora, reconhece e anexa sítios reais. Aceita o pedido de localização.</p>
     <label class="titulo">A tua personagem</label>
     <div style="display:flex;align-items:center;gap:12px;margin:6px 0 4px">
@@ -179,6 +181,7 @@
     <button class="redondo escondido" id="btnEsc" title="Esconderijos">🍂</button>
     <button class="redondo" id="btnPerfil" title="Perfil e missões">👤<span class="badge escondido" id="badge"></span></button>
     <button class="redondo" id="btnCentrar" title="Centrar em mim">◎</button>
+    <button class="redondo" id="btnMusica" title="Música">🎵</button>
     <button class="redondo escondido" id="btnInstalar" title="Instalar como app" onclick="instalar()">📲</button>
   </div>
 </section>
@@ -516,8 +519,8 @@ function moverPara(latlng, precisao = 0) {
 function iconePoi(p) {
   const c = categoriaPorId(p.cat), e = est(p.id);
   const cls = e.dono ? 'meu' : e.recon ? 'rec' : '';
-  return L.divIcon({ className: 'pe', iconSize: [28, 28], iconAnchor: [14, 14],
-    html: `<div class="${cls}" style="background:${c.cor}${e.dono ? ';border-color:' + P.cor : ''}">${c.icone}</div>` });
+  return L.divIcon({ className: 'pe', iconSize: [34, 34], iconAnchor: [17, 17],
+    html: `<div class="${cls}" style="border-color:${e.dono ? P.cor : c.cor}">${c.icone}</div>` });
 }
 const atualizarPin = p => pins[p.id] && pins[p.id].setIcon(iconePoi(p));
 // Só ficam no mapa os pins da zona à vista (assim o telemóvel não fica lento com centenas de POIs)
@@ -530,6 +533,13 @@ function verPins() {
     const m = pins[p.id], dentro = vista.contains([p.lat, p.lng]);
     if (dentro && !mapa.hasLayer(m)) m.addTo(mapa); else if (!dentro && mapa.hasLayer(m)) m.remove();
   }
+}
+// Zonas de natureza (matas, pinhais, florestas, parques): verde por baixo de tudo, sempre visíveis.
+// São onde os Elfos ganham madeira a andar e onde se criam esconderijos.
+function desenharNatureza() {
+  mapa.createPane('natureza'); mapa.getPane('natureza').style.zIndex = 350;
+  const estilo = { pane: 'natureza', color: '#1f9d3a', weight: 2, opacity: .9, fillColor: '#2fbf4a', fillOpacity: .28, interactive: false };
+  for (const n of NAT) L.polygon(n.a, estilo).addTo(mapa);
 }
 function desenharPois() {
   for (const p of POIS) {
@@ -812,7 +822,7 @@ function tick() {
   if (silencioso) return;
   if (escolhendoCasa) atualizarEscolhaCasa();
   guardar(); atualizarHud(); desenharFeiras();
-  $('zona').textContent = texto; $('zona').classList.toggle('escondido', !texto);
+  $('zona').textContent = texto; $('zona').classList.toggle('escondido', !texto || !!escolhendoCasa);
   if (aberto) render();
 }
 
@@ -1218,8 +1228,8 @@ function renderPerfil() {
     if (!feita) {
       if (m.tipo === 'foto') acao = btn('📸 Fotografar', () => perguntar('📸', m.titulo,
         'Simulação: aqui a fotografia conta em qualquer sítio. No jogo real tens de estar no sítio certo (o GPS confirma).',
-        'Tirar fotografia', () => { cumprir(m.id); mostrar(FACOES[m.facao].icone, FACOES[m.facao].nome, m.texto); }));
-      if (m.tipo === 'pesquisa') acao = btn(`Pagar ${fmtCusto(m.custo)}`, () => { pagar(m.custo); cumprir(m.id); mostrar(FACOES[m.facao].icone, m.titulo, m.texto); }, temRec(m.custo));
+        'Tirar fotografia', () => { cumprir(m.id); mostrarFacao(m.facao, m.titulo, false, m.texto); }));
+      if (m.tipo === 'pesquisa') acao = btn(`Pagar ${fmtCusto(m.custo)}`, () => { pagar(m.custo); cumprir(m.id); mostrarFacao(m.facao, m.titulo, true); }, temRec(m.custo));
       if (m.tipo === 'facao') {
         const livres = Object.keys(FACOES).filter(f => !Object.values(P.provas).includes(f) && provaCumprida(f));
         acao = livres.map(f => btn(FACOES[f].icone, () => { P.provas[m.id] = f; cumprir(m.id); tick(); })).join(' ') || '<small>—</small>';
@@ -1233,6 +1243,8 @@ function renderPerfil() {
         fechar(); mapa.setView([p.lat, p.lng], 17); verPins(); pins[p.id].openTooltip(); abrir('poi', p);
       });
     }
+    // missões de conhecer as fações já feitas: pode rever-se o que mostraram
+    if (feita && (m.tipo === 'foto' || m.tipo === 'pesquisa')) acao = btn('Ver', () => mostrarFacao(m.facao, m.titulo, m.tipo === 'pesquisa', m.tipo === 'foto' ? m.texto : ''));
     const extra = m.tipo === 'facao' ? (P.provas[m.id] ? ` · ${FACOES[P.provas[m.id]].nome}` : '<small>' + Object.entries(PROVAS_FACAO).filter(([f]) => !Object.values(P.provas).includes(f)).map(([f, pr]) => `${FACOES[f].icone} ${pr.texto}`).join('<br>') + '</small>') : '';
     h += `<div class="linhaItem${feita ? ' feita' : ''}"><span>${feita ? '✅' : '⬜'}</span><span class="t">${m.titulo}${extra}${m.texto && m.tipo !== 'foto' && m.tipo !== 'pesquisa' ? `<small>${m.texto}</small>` : ''}</span>
       <span class="xp">${m.xp ? '+' + m.xp + ' XP' : ''}${m.recursos ? ' ' + fmtRec(m.recursos) : ''}</span>${acao}</div>`;
@@ -1254,6 +1266,22 @@ function perguntar(icone, titulo, texto, simTxt, fn, voltar = 'perfil') {   // v
   $('fCorpo').innerHTML = `<div class="nota" style="font-size:14px">${texto}</div>
     <div class="acoes">${btn('Cancelar', () => abrir(voltar))}${btn(simTxt, fn, true, 'ok')}</div>`;
   aberto = 'pergunta'; $('folha').classList.remove('escondido');
+}
+// Conhecer uma fação: o que tem de bom e de mau e (no estudo) os 2 primeiros níveis de cada ramo da árvore
+function mostrarFacao(f, titulo, comArvore, intro = '') {
+  const F = FACOES[f];
+  cab(F.icone, titulo, `${F.nome} · ${F.lema}`);
+  let h = intro ? `<div class="nota" style="font-size:14px">${intro}</div>` : '';
+  h += `<div class="bloco"><div class="r">👍 O que tem de bom</div><div class="nota" style="font-size:13px;line-height:1.5">${F.bom}</div></div>
+    <div class="bloco"><div class="r">👎 O que tem de mau</div><div class="nota" style="font-size:13px;line-height:1.5">${F.mau}</div></div>`;
+  if (comArvore) {
+    h += '<div class="seccao">Árvore de ciência · primeiros níveis (a partir do nível 11)</div>';
+    for (const r of resumoArvore(f, 2)) h += `<div class="linhaItem"><span>${r.icone}</span><span class="t">${r.nome}
+      <small>${r.niveis.map(n => `<b>Nível ${n.nivel}</b> · 🔬 ${n.custo.ciencia}: ${n.texto}`).join('<br>')}</small></span></div>`;
+    h += `<div class="nota">Cada ramo vai até ao nível 5. A árvore só se pode investigar depois de escolher a fação no nível 10.</div>`;
+  } else h += `<div class="nota">No nível 6 podes estudar a fação para ver os primeiros níveis da árvore de ciência dela.</div>`;
+  $('fCorpo').innerHTML = h + `<div class="acoes">${btn('OK', () => abrir('perfil'), true, 'ok')}</div>`;
+  aberto = 'mensagem'; $('folha').classList.remove('escondido');
 }
 function mostrar(icone, titulo, texto) {
   cab(icone, titulo, '');
@@ -1291,6 +1319,33 @@ $('btnEsc').onclick = () => abrir('esconderijo');
 $('btnPerfil').onclick = () => abrir('perfil');
 $('btnCentrar').onclick = () => marcador && mapa.setView(marcador.getLatLng(), Math.max(mapa.getZoom(), 16));
 
+// ---------- Música de fundo ----------
+// Os browsers só deixam tocar depois de um toque no ecrã: começa no primeiro toque.
+// No fim da faixa espera MUSICA_PAUSA_MS e recomeça. Pára quando o jogo sai do ecrã.
+const MUSICA_PAUSA_MS = 10000;
+const musica = new Audio('musica.mp3'); musica.preload = 'none'; musica.volume = 0.25;
+let musicaLigada = true, musicaEspera = null;
+try { musicaLigada = localStorage.getItem('bandeiras.musica') !== 'nao'; } catch (e) {}
+function tocarMusica() {
+  if (!musicaLigada || document.hidden || musicaEspera || !musica.paused) return;
+  musica.play().catch(() => {});
+}
+function pararMusica() { clearTimeout(musicaEspera); musicaEspera = null; musica.pause(); }
+musica.addEventListener('ended', () => {
+  musica.currentTime = 0;
+  musicaEspera = setTimeout(() => { musicaEspera = null; tocarMusica(); }, MUSICA_PAUSA_MS);
+});
+const botaoMusica = () => { $('btnMusica').textContent = musicaLigada ? '🎵' : '🔇'; $('btnMusica').title = musicaLigada ? 'Desligar a música' : 'Ligar a música'; };
+$('btnMusica').onclick = ev => {
+  ev.stopPropagation();
+  musicaLigada = !musicaLigada;
+  try { localStorage.setItem('bandeiras.musica', musicaLigada ? 'sim' : 'nao'); } catch (e) {}
+  botaoMusica(); musicaLigada ? tocarMusica() : pararMusica();
+};
+document.addEventListener('pointerdown', tocarMusica, true);
+document.addEventListener('visibilitychange', () => document.hidden ? pararMusica() : tocarMusica());
+botaoMusica();
+
 // ---------------------------------------------------------------------
 function ativarModoTeste(motivo) {
   if (modoTeste) return;
@@ -1326,7 +1381,7 @@ function iniciarJogo() {
   const lim = desenharFronteiras();
   mapa.setMaxBounds(lim.pad(.15));
   mapa.setView(P.pos, 15);
-  desenharPois(); desenharCasa(); desenharEsconderijos(); desenharPercurso();
+  desenharNatureza(); desenharPois(); desenharCasa(); desenharEsconderijos(); desenharPercurso();
   if (PEDIU_TESTE) ativarModoTeste('Modo de teste'); else iniciarGps();
   setInterval(tick, 1000);
   // manter o ecrã ligado enquanto o jogo está aberto (se o telemóvel deixar)

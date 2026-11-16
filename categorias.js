@@ -53,7 +53,7 @@ const eMonumento = t => !/^zona (especial )?de prote[cç][aã]o|^ZEP\b/i.test(t.
 const CATEGORIAS = [
   {
     id: 'monumento-grande', nome: 'Monumento nacional (grande)', icone: '🏞️', cor: '#d4a017',
-    horasAnexar: 2, cicloHoras: 24, produz: { ouro: 3 }, maxCiclos: 7,
+    horasAnexar: 1, cicloHoras: 24, produz: { ouro: 3 }, maxCiclos: 7,
     dentroDosLimites: true,     // tem de estar dentro da área (ou a menos de 30 m dos troços)
     energiaAnexar: 0,           // anexar não gasta energia
     energiaAndarDentro: 0,      // andar lá dentro não gasta energia
@@ -63,7 +63,7 @@ const CATEGORIAS = [
   },
   {
     id: 'monumento', nome: 'Monumento nacional', icone: '🏛️', cor: '#b58b2a',
-    horasAnexar: 1, cicloHoras: 24, produz: { ouro: 3 }, maxCiclos: 7,
+    horasAnexar: 0.5, cicloHoras: 24, produz: { ouro: 3 }, maxCiclos: 7,
     teste: t => eMonumento(t),
     // Os mais emblemáticos são escolhidos primeiro: Património Mundial > templos, sés e cromeleques > palácios e castelos > conventos e mosteiros
     // (Irlanda: castelos, palácios e casas senhoriais > abadias, catedrais e torres redondas; "site of" = já não existe → último)
@@ -76,53 +76,53 @@ const CATEGORIAS = [
   {
     // Ciência que se vai buscar de vez em quando: acumula até uma semana
     id: 'biblioteca', nome: 'Biblioteca', icone: '📚', cor: '#2e6f9e',
-    horasAnexar: 5, cicloHoras: 1, produz: { ciencia: 1 }, maxCiclos: 168,
+    horasAnexar: 2.5, cicloHoras: 1, produz: { ciencia: 1 }, maxCiclos: 168,
     teste: t => t.amenity === 'library',
   },
   {
     // Ciência que tem de se ir buscar todos os dias: só produz 8 h em cada 24 h e acumula no máximo 8
     id: 'escola', nome: 'Escola', icone: '🏫', cor: '#3a8f8f',
-    horasAnexar: 5, cicloHoras: 1, produz: { ciencia: 1 }, maxCiclos: 8, horasPorDia: 8,
+    horasAnexar: 2.5, cicloHoras: 1, produz: { ciencia: 1 }, maxCiclos: 8, horasPorDia: 8,
     teste: t => t.amenity === 'school' && !!t.name,
   },
   {
     id: 'banco', nome: 'Banco', icone: '🏦', cor: '#3f7d4e',
     // Deposita 10 de ouro por dia, sozinho, à hora de fecho (15h): não é preciso ir recolher.
     // Paga SEMPRE, mesmo que o consumo diário de ouro esteja por pagar (é a forma de sair desse aperto).
-    horasAnexar: 4, cicloHoras: 24, produz: { ouro: 10 }, maxCiclos: 1, depositaAs: 15,
+    horasAnexar: 2, cicloHoras: 24, produz: { ouro: 10 }, maxCiclos: 1, depositaAs: 15,
     teste: t => t.amenity === 'bank',
   },
   {
     id: 'mercado', nome: 'Supermercado / minimercado', icone: '🛒', cor: '#c4672c',
-    horasAnexar: 20, cicloHoras: 1, produz: { comida: 3, ouro: 1 }, maxCiclos: 8, minutosParaRecolher: 5,
+    horasAnexar: 10, cicloHoras: 1, produz: { comida: 3, ouro: 1 }, maxCiclos: 8, minutosParaRecolher: 5,
     teste: t => t.shop === 'supermarket' || t.shop === 'convenience',
   },
   {
     id: 'comida', nome: 'Restaurante / café / pastelaria', icone: '🍽️', cor: '#a8434a',
-    horasAnexar: 20, cicloHoras: 24, produz: { comida: 2 }, maxCiclos: 1,
+    horasAnexar: 10, cicloHoras: 24, produz: { comida: 2 }, maxCiclos: 1,
     teste: t => ['restaurant', 'cafe', 'fast_food'].includes(t.amenity) || ['bakery', 'pastry', 'deli'].includes(t.shop),
   },
   {
     id: 'pedra', nome: 'Oficina de pedra', icone: '🪨', cor: '#7d7f86',
-    horasAnexar: 8, cicloHoras: 1, produz: { pedra: 1 }, maxCiclos: 4,
+    horasAnexar: 4, cicloHoras: 1, produz: { pedra: 1 }, maxCiclos: 4,
     teste: t => t.craft === 'stonemason' || nomeTem(t, /m[aá]rmore|granito|cantaria|marble|granite|stone ?works|stonemason|quarry products/i),
   },
   {
     id: 'metal', nome: 'Serralharia de metais', icone: '🔩', cor: '#4a6a8a',
-    horasAnexar: 8, cicloHoras: 1, produz: { ferro: 1 }, maxCiclos: 4,
+    horasAnexar: 4, cicloHoras: 1, produz: { ferro: 1 }, maxCiclos: 4,
     teste: t => ['metal_construction', 'blacksmith', 'welder'].includes(t.craft) ||
       nomeTem(t, /serralharia|metal[uú]rgica|metalomec|steel|metal ?works|fabricat|welding|engineering works/i),
   },
   {
     id: 'madeira', nome: 'Serralharia de madeira (carpintaria)', icone: '🪵', cor: '#8a5a2b',
-    horasAnexar: 8, cicloHoras: 1, produz: { madeira: 1 }, maxCiclos: 4,
+    horasAnexar: 4, cicloHoras: 1, produz: { madeira: 1 }, maxCiclos: 4,
     teste: t => ['carpenter', 'joiner', 'sawmill', 'cabinet_maker'].includes(t.craft) ||
       nomeTem(t, /carpintaria|marcenaria|serra[cç][aã]o|madeiras|joinery|carpentry|timber|sawmill|woodwork/i),
   },
   {
     // ⚠️ proposta: 1 ferro + 1 madeira a cada 2 h (o mesmo ritmo total de uma oficina)
     id: 'ferragens', nome: 'Loja de ferragens / bricolage', icone: '🛠️', cor: '#5f6b3a',
-    horasAnexar: 8, cicloHoras: 2, produz: { ferro: 1, madeira: 1 }, maxCiclos: 2,
+    horasAnexar: 4, cicloHoras: 2, produz: { ferro: 1, madeira: 1 }, maxCiclos: 2,
     teste: t => t.shop === 'hardware' || t.shop === 'doityourself',
   },
 ];

@@ -172,9 +172,7 @@ function simular() {
     // 1b) Reconhecimento de POIs novos (1 recurso ao calhas; XP só abaixo do nível 3)
     for (let i = 0; i < reconDia; i++) {
       const rec = RECONHECIMENTO.recursos[s.nRecon++ % RECONHECIMENTO.recursos.length];   // em média, 1 de cada a cada 5
-      s.r[rec] += RECONHECIMENTO.quantidade; ganho[rec] += RECONHECIMENTO.quantidade;
-      s.r.ouro += RECONHECIMENTO.ouro; ganho.ouro += RECONHECIMENTO.ouro;
-      s.r.ciencia += RECONHECIMENTO.ciencia || 0; ganho.ciencia += RECONHECIMENTO.ciencia || 0;
+      add(premioReconhecimento(nivel(), rec));   // em dobro abaixo do nível 3
       if (nivel() < RECONHECIMENTO.xpAteNivel) { s.xp += RECONHECIMENTO.xp; s.xpRecon += RECONHECIMENTO.xp; }
     }
     // 1c) Missões diárias: 10 XP cada + o lote de recursos dessa missão

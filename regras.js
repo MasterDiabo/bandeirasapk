@@ -29,7 +29,7 @@ const XP_LIMITE_SEM_FACAO = XP_NIVEIS.slice(0, NIVEL_ESCOLHA_FACAO).reduce((a, b
 const somarXp = (xp, n, temFacao) => temFacao ? xp + n : Math.min(xp + n, Math.max(xp, XP_LIMITE_SEM_FACAO));
 
 const XP_POR_KM = 5;
-const XP_POR_ANEXAR = 50;
+const XP_POR_ANEXAR = 60;
 // Recursos com que um jogador novo começa. A casa não produz comida: 50 dá para ~12 dias de consumo
 // depois do nível 3, o tempo de anexar o primeiro POI de comida (missão do nível 1).
 const RECURSOS_INICIAIS = { comida: 50 };
@@ -146,14 +146,23 @@ const MISSOES_DIARIAS = [
 
 // Reconhecimento: em qualquer POI (dentro do alcance) há um botão "Reconhecimento".
 // Uma vez por POI: dá 5 de ouro + 2 de ciência + 1 recurso aleatório e, abaixo do nível 3, também XP.
+// Abaixo do nível 3 os recursos vêm EM DOBRO (10 de ouro + 4 de ciência + 2 do recurso ao calhas).
 const RECONHECIMENTO = {
-  xp: 20,
+  xp: 40,
   xpAteNivel: 3,                                              // a partir do nível 3 já não dá XP
   ouro: 5,                                                    // sempre
   ciencia: 2,                                                 // sempre (qualquer POI): ciência desde o início
   recursos: ['comida', 'ouro', 'pedra', 'ferro', 'madeira'],  // + 1 destes, ao calhas
   quantidade: 1,
+  multAteNivel: 2,                                            // recursos ×2 abaixo do nível 3 (xpAteNivel)
 };
+// O que um reconhecimento dá (recursos) para um jogador neste nível; `extra` = o recurso que calhou
+function premioReconhecimento(nivel, extra) {
+  const R = RECONHECIMENTO, m = nivel < R.xpAteNivel ? R.multAteNivel : 1;
+  const g = { ouro: R.ouro * m, ciencia: (R.ciencia || 0) * m };
+  g[extra] = (g[extra] || 0) + R.quantidade * m;
+  return g;
+}
 
 // ---- Comércio nas feiras ------------------------------------------------
 // As feiras são POIs especiais que NÃO são fixos: cada concelho tem uma feira ativa de cada vez,

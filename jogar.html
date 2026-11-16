@@ -83,6 +83,7 @@
   .pinpoi .p { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
     font-size: 20px; border: 3px solid #888; background: #2a3121; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
   .pinpoi .etiqueta { top: 40px; }
+  .falta { color: #ef8a7f; font-weight: 600; }   /* custo: o que falta */
   /* POIs: emoji do tipo num círculo da cor da categoria. Rebordo: escuro = desconhecido, branco = reconhecido, cor do jogador = teu */
   .pe { background: none; border: none; }
   .pe div { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px;
@@ -113,6 +114,9 @@
   .acoes { display: flex; gap: 10px; margin-top: 16px; }
   .acoes button, .btn { flex: 1; padding: 11px; border-radius: 10px; border: 1px solid var(--borda); background: var(--painel2); color: var(--texto); }
   .acoes .perigo { border-color: var(--perigo); color: #f0a09d; }
+  .escolhaCasa { position: absolute; left: 12px; right: 12px; bottom: 84px; z-index: 1100; background: rgba(31,36,24,.96);
+    border: 1px solid var(--acento); border-radius: 12px; padding: 12px; color: var(--texto); font-size: 13px; line-height: 1.4; }
+  .escolhaCasa .acoes { margin-top: 10px; }
   .ok { background: var(--acento) !important; border-color: var(--acento) !important; color: #1a1a0f !important; font-weight: 700; }
   button:disabled { opacity: .45; cursor: not-allowed; }
   .linhaItem { display: flex; align-items: center; gap: 10px; background: var(--painel2); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
@@ -161,6 +165,8 @@
   </div>
   <div class="zona escondido" id="zona"></div>
   <div class="toast escondido" id="toast"></div>
+  <div class="escolhaCasa escondido" id="escolhaCasa"><div id="escolhaTxt"></div>
+    <div class="acoes"><button id="escCancelar">Cancelar</button><button id="escConfirmar" class="ok" disabled>🏠 Construir aqui</button></div></div>
   <div class="tempo escondido">
     <button data-h="1">⏩ +1 h</button>
     <button data-h="4">+4 h</button>
@@ -205,6 +211,9 @@
 //  · Tempo: botões ⏩ (o tempo também passa normalmente).
 // =====================================================================
 const RAIO_POI = 30, RAIO_CASA = 50, RAIO_FEIRA = 30;
+// Anexar: raio maior e GPS menos exigente (dentro de um supermercado o GPS fica muitas vezes a ±50 m).
+// Se o GPS falhar ou saíres um bocado, a anexação PAUSA; só é cancelada se te afastares mais de RAIO_CANCELAR_ANEXAR (com GPS bom).
+const RAIO_ANEXAR = 75, PRECISAO_ANEXAR = 75, RAIO_CANCELAR_ANEXAR = 150;
 const MAX_PONTE_HORAS = 4;
 const HORA = 3600000, MIN = 60000, DIA = 24 * HORA;
 const CORES = ['#6b8e3a', '#8a6d3b', '#4a6a8a', '#8a3b3b', '#5d4a8a', '#3b7a74', '#d4b018'];
@@ -229,6 +238,9 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 const fmtDist = m => m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`;
 const ic = k => RECURSOS[k].icone;
+// Custo com o que já tens: "🪙 13/25" (a vermelho o que falta)
+const fmtCusto = c => Object.entries(c).filter(([, v]) => v).map(([k, v]) => { const tem = Math.floor(P.r[k] || 0);
+  return `<span class="${tem >= v ? '' : 'falta'}">${ic(k)} ${tem}/${v}</span>`; }).join(' ');
 const fmtRec = o => Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${ic(k)} ${Math.round(v * 10) / 10}`).join(' ');
 const mult = (o, n) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v * n]));
 function fmtTempo(ms) {
@@ -417,6 +429,12 @@ const pintarAvatar = (el, p) => { el.textContent = p.avatar; el.style.background
 let mapa, marcador, posAtual = null;
 const pins = {}; let camadaFeiras = null, chaveFeiras = '', pinCasa = null;
 
+// Está no POI para anexar? (raio e precisão de GPS mais largos do que para reconhecer/recolher)
+function presenteAnexar(p) {
+  if (!posAtual || precisaoAtual > PRECISAO_ANEXAR) return false;
+  if (p.cat === 'monumento-grande' && p.geo) return dentroDoMonumento(posAtual.lat, posAtual.lng, p.geo);
+  return posAtual.distanceTo([p.lat, p.lng]) <= RAIO_ANEXAR;
+}
 function presente(sitio, raio) {
   if (!posAtual || precisaoAtual > PRECISAO_MAXIMA) return false;
   if (sitio.cat === 'monumento-grande' && sitio.geo) return dentroDoMonumento(posAtual.lat, posAtual.lng, sitio.geo);
@@ -429,6 +447,42 @@ const iconeJogador = () => L.divIcon({ className: 'marcador', iconSize: [40, 40]
 // Quando o GPS volta (ou se reabre o jogo), conta-se o caminho feito entretanto EM LINHA RETA,
 // se for plausível: pelo menos 1 min sem GPS e no máximo 150 km/h (um salto rápido é falha do GPS, não conta).
 const PAUSA_MIN_S = 60, VELOCIDADE_MAX = 150 / 3.6;   // m/s
+
+// ---- Percurso: o caminho andado, desenhado no mapa com a cor do jogador ----
+// Guarda-se em troços (um salto/teletransporte começa um troço novo). No máximo MAX_PONTOS_PERCURSO pontos:
+// quando passa, os mais antigos saem.
+const MAX_PONTOS_PERCURSO = 3000;
+const r5 = v => Math.round(v * 1e5) / 1e5;
+let linhaPercurso = null, contornoPercurso = null;
+function juntarAoPercurso(de, para) {
+  P.percurso = P.percurso || [];
+  let seg = P.percurso[P.percurso.length - 1];
+  const ult = seg && seg[seg.length - 1];
+  if (!seg || P.percursoCortado || !ult || L.latLng(ult).distanceTo(de) > 2) {
+    seg = [[r5(de.lat), r5(de.lng)]]; P.percurso.push(seg); P.percursoCortado = false;
+  }
+  seg.push([r5(para.lat), r5(para.lng)]);
+  let total = P.percurso.reduce((t, s) => t + s.length, 0);
+  while (total > MAX_PONTOS_PERCURSO && P.percurso.length) {
+    const s = P.percurso[0], tira = Math.min(s.length, total - MAX_PONTOS_PERCURSO);
+    s.splice(0, tira); total -= tira;
+    if (s.length < 2) { total -= s.length; P.percurso.shift(); }
+  }
+  desenharPercurso();
+}
+function desenharPercurso() {
+  if (!mapa) return;
+  // contorno branco por baixo, para a linha se ver bem em cima do mapa
+  if (!linhaPercurso) {
+    contornoPercurso = L.polyline(P.percurso || [], { color: '#fff', weight: 8, opacity: .7, interactive: false }).addTo(mapa);
+    linhaPercurso = L.polyline(P.percurso || [], { color: P.cor, weight: 5, opacity: .95, interactive: false }).addTo(mapa);
+  } else {
+    contornoPercurso.setLatLngs(P.percurso || []);
+    linhaPercurso.setLatLngs(P.percurso || []).setStyle({ color: P.cor });
+  }
+}
+const cortarPercurso = () => { P.percursoCortado = true; };
+
 function moverPara(latlng, precisao = 0) {
   precisaoAtual = precisao;
   let emPausa = false;
@@ -439,12 +493,13 @@ function moverPara(latlng, precisao = 0) {
       if (precisao <= PRECISAO_MAXIMA) P.ultimoFixT = Date.now();
       if (d <= Math.max(5, precisao / 2)) { tick(); return; }   // tremor do GPS: ignora
       emPausa = d >= 500 && precisao <= PRECISAO_MAXIMA && pausaS >= PAUSA_MIN_S && d / pausaS <= VELOCIDADE_MAX;
-      if (d >= 500 && !emPausa) { posAtual = latlng; P.pos = [latlng.lat, latlng.lng]; marcador && marcador.setLatLng(latlng); tick(); return; }   // salto (GPS perdido): não conta
+      if (d >= 500 && !emPausa) { cortarPercurso(); posAtual = latlng; P.pos = [latlng.lat, latlng.lng]; marcador && marcador.setLatLng(latlng); tick(); return; }   // salto (GPS perdido): não conta
       if (emPausa) aviso(`👣 Contámos ${fmtDist(d)} feitos com o jogo fechado (em linha reta)`);
     } else if (d > 5000) {
       // modo de teste: mais de 5 km de uma vez é um teletransporte (ex.: ir de Portugal à Irlanda) e não conta como andado
-      posAtual = latlng; P.pos = [latlng.lat, latlng.lng]; marcador && marcador.setLatLng(latlng); tick(); return;
+      cortarPercurso(); posAtual = latlng; P.pos = [latlng.lat, latlng.lng]; marcador && marcador.setLatLng(latlng); tick(); return;
     }
+    juntarAoPercurso(posAtual, latlng);
     P.distancia += d; progDiaria('metros', d); elfosAndar(d, latlng, emPausa);
     const km = Math.floor(P.distancia / 1000);
     if (km > P.kmXp) { darXp((km - P.kmXp) * XP_POR_KM); P.kmXp = km; }
@@ -499,6 +554,50 @@ function desenharFeiras() {
   return ativas;
 }
 const feirasAtivas = () => [...new Set(CAND_FEIRA.map(c => c.concelho))].map(c => feiraAtiva(CAND_FEIRA, c, new Date(agora()))).filter(Boolean);
+// ---- Escolher o sítio da casa: no mapa, com o jogador dentro do círculo da casa (RAIO_CASA) ----
+let escolhendoCasa = null;   // { ponto, camadas }
+function comecarEscolherCasa() {
+  if (!posAtual) return;
+  fechar();
+  escolhendoCasa = { ponto: null, camadas: L.layerGroup().addTo(mapa) };
+  mapa.setView(posAtual, 18);
+  mapa.on('click', tocarSitioCasa);
+  $('escolhaCasa').classList.remove('escondido');
+  atualizarEscolhaCasa();
+}
+function tocarSitioCasa(ev) { if (escolhendoCasa) { escolhendoCasa.ponto = ev.latlng; atualizarEscolhaCasa(); } }
+function atualizarEscolhaCasa() {
+  const E = escolhendoCasa; if (!E) return;
+  E.camadas.clearLayers();
+  // à tua volta: até onde pode ficar a casa
+  if (posAtual) L.circle(posAtual, { radius: RAIO_CASA, color: '#fff', weight: 2, dashArray: '6 6', fillOpacity: .05, interactive: false }).addTo(E.camadas);
+  let ok = false, msg = `Toca no mapa onde queres a casa. Tens de ficar dentro do círculo dela (${RAIO_CASA} m): pode ser em qualquer sítio dentro do tracejado.`;
+  if (E.ponto) {
+    const d = posAtual ? posAtual.distanceTo(E.ponto) : Infinity, noJogo = !!concelhoDe(E.ponto.lat, E.ponto.lng, CONCELHOS);
+    ok = d <= RAIO_CASA && noJogo;
+    const cor = ok ? P.cor : '#b0413e';
+    L.circle(E.ponto, { radius: RAIO_CASA, color: cor, weight: 2, fillOpacity: .15, interactive: false }).addTo(E.camadas);
+    L.marker(E.ponto, { interactive: false, icon: L.divIcon({ className: 'pinpoi', iconSize: [36, 36], iconAnchor: [18, 18],
+      html: `<div class="p" style="border-color:${cor}">🏠</div>` }) }).addTo(E.camadas);
+    msg = !noJogo ? 'Esse sítio fica fora dos concelhos do jogo: escolhe outro.'
+      : d > RAIO_CASA ? `Fica a ${Math.round(d)} m de ti: tem de ser a menos de ${RAIO_CASA} m, para ficares dentro do círculo da casa.`
+      : `Casa a ${Math.round(d)} m de ti · ficas dentro do círculo dela. Custa ${fmtCusto(CONSTRUCOES.casa.niveis[0].custo)}.`;
+  }
+  $('escolhaTxt').innerHTML = msg; $('escConfirmar').disabled = !ok;
+}
+function acabarEscolherCasa() {
+  if (!escolhendoCasa) return;
+  mapa.off('click', tocarSitioCasa); escolhendoCasa.camadas.remove(); escolhendoCasa = null;
+  $('escolhaCasa').classList.add('escondido');
+}
+$('escCancelar').onclick = () => { acabarEscolherCasa(); abrir('casa'); };
+$('escConfirmar').onclick = () => {
+  const E = escolhendoCasa, nv = CONSTRUCOES.casa.niveis[0];
+  if (!E || !E.ponto || !posAtual || posAtual.distanceTo(E.ponto) > RAIO_CASA || !temRec(nv.custo)) return;
+  pagar(nv.custo); P.casa = { lat: E.ponto.lat, lng: E.ponto.lng };
+  P.obra = { k: 'casa', nv: 1, fim: agora() + nv.horas * HORA };
+  acabarEscolherCasa(); desenharCasa(); aviso(`🏠 Casa marcada · a obra demora ${nv.horas} h`); tick();
+};
 function desenharCasa() {
   if (pinCasa) pinCasa.forEach(l => mapa.removeLayer(l));
   if (!P.casa) return;
@@ -647,9 +746,15 @@ function tick() {
   // POIs ao alcance
   for (const p of POIS) {
     const e = est(p.id), c = categoriaPorId(p.cat), chave = 'poi:' + p.id;
-    if (!presente(p, RAIO_POI)) {
-      if (P.presencas[chave]) { delete P.presencas[chave]; e.chegada = null; }
-      if (P.anexando === p.id) { P.anexando = null; aviso(`Saíste de ${p.nome} · anexação parada`, true); }
+    const aAnexarAqui = P.anexando === p.id && presenteAnexar(p);
+    if (!presente(p, RAIO_POI) && !aAnexarAqui) {
+      if (P.presencas[chave]) { delete P.presencas[chave]; e.chegada = null; }   // o tempo fora não conta
+      if (P.anexando === p.id) {
+        const longe = posAtual && precisaoAtual <= PRECISAO_MAXIMA && posAtual.distanceTo([p.lat, p.lng]) > RAIO_CANCELAR_ANEXAR
+          && !(p.cat === 'monumento-grande' && p.geo && dentroDoMonumento(posAtual.lat, posAtual.lng, p.geo));
+        if (longe) { P.anexando = null; aviso(`Saíste de ${p.nome} · anexação parada`, true); }
+        else if (!texto) texto = `${c.icone} Anexação em pausa · volta a menos de ${RAIO_ANEXAR} m de ${p.nome}`;
+      }
       continue;
     }
     const dt = tempoPresente(chave, t);
@@ -705,6 +810,7 @@ function tick() {
   }
 
   if (silencioso) return;
+  if (escolhendoCasa) atualizarEscolhaCasa();
   guardar(); atualizarHud(); desenharFeiras();
   $('zona').textContent = texto; $('zona').classList.toggle('escondido', !texto);
   if (aberto) render();
@@ -778,7 +884,7 @@ function reconhecer(p) {
   const e = est(p.id); if (e.recon || !presente(p, RAIO_POI)) return;
   e.recon = agora();
   const R = RECONHECIMENTO, extra = R.recursos[Math.floor(Math.random() * R.recursos.length)];
-  const g = { ouro: R.ouro, ciencia: R.ciencia || 0 }; g[extra] = (g[extra] || 0) + R.quantidade;
+  const g = premioReconhecimento(nivel(), extra);   // em dobro abaixo do nível 3
   ganhar(g, 'reconhecimento'); progDiaria('reconhecer');
   let xp = 0; if (nivel() < R.xpAteNivel) { xp = R.xp; darXp(xp); }
   atualizarPin(p);
@@ -806,21 +912,21 @@ function remotasRestantes() {
   return nvDe('escritorio').recolhasRemotasDia - usadas;
 }
 function renderPoi() {
-  const p = alvo, c = categoriaPorId(p.cat), e = est(p.id), aqui = presente(p, RAIO_POI);
+  const p = alvo, c = categoriaPorId(p.cat), e = est(p.id), aqui = presente(p, RAIO_POI), aquiAnexar = presenteAnexar(p);
   cab(c.icone, p.nome, `${c.nome} · ${p.concelho || ''} · ${distTxt(p, RAIO_POI)}`);
   const ciclo = c.cicloHoras === 24 ? 'por dia' : c.cicloHoras === 1 ? 'por hora' : `a cada ${c.cicloHoras}h`;
   const prod = c.depositaAs !== undefined ? `${fmtRec(c.produz)} por dia, entregue às ${c.depositaAs}h sem recolha` : `${fmtRec(c.produz)} ${ciclo}${c.horasPorDia ? ` (só ${c.horasPorDia}h por dia)` : ''} · acumula ${c.maxCiclos * c.cicloHoras >= 24 && (c.maxCiclos * c.cicloHoras) % 24 === 0 ? (c.maxCiclos * c.cicloHoras / 24) + ' dia(s)' : c.maxCiclos * c.cicloHoras + 'h'}`;
   let h = '';
   // Reconhecimento
   const R = RECONHECIMENTO;
-  h += `<div class="linhaItem${e.recon ? ' feita' : ''}"><span>🔍</span><span class="t">Reconhecimento<small>${e.recon ? 'Já feito' : `Uma vez: 🪙 ${R.ouro} + 🔬 ${R.ciencia || 0} + 1 recurso ao calhas${nivel() < R.xpAteNivel ? ' + ' + R.xp + ' XP' : ''}`}</small></span>
+  h += `<div class="linhaItem${e.recon ? ' feita' : ''}"><span>🔍</span><span class="t">Reconhecimento<small>${e.recon ? 'Já feito' : `Uma vez: ${(m => `🪙 ${R.ouro * m} + 🔬 ${(R.ciencia || 0) * m} + ${R.quantidade * m} de um recurso ao calhas`)(nivel() < R.xpAteNivel ? R.multAteNivel : 1)}${nivel() < R.xpAteNivel ? ' + ' + R.xp + ' XP (e recursos em dobro até ao nível ' + R.xpAteNivel + ')' : ''}`}</small></span>
     ${e.recon ? '' : btn(aqui ? 'Reconhecer' : 'Vai ao local', () => reconhecer(p), aqui)}</div>`;
   if (!e.dono) {
     const b = bloqueioAnexar(p), aAnexar = P.anexando === p.id;
     h += `<div class="bloco"><div class="r">Anexar · ${horasAnexarDe(c)} h${c.energiaAnexar === 0 ? ' · não gasta energia' : ` · 1 energia por ${Math.round(minPorEnergiaAnexar())} min`}</div>
       <div class="v">${fmtTempo(e.ms)} / ${horasAnexarDe(c)}h</div><div class="barra"><div style="width:${e.ms / (horasAnexarDe(c) * HORA) * 100}%"></div></div>
-      <div class="nota">${aAnexar ? '⏳ A anexar · fica no local (usa ⏩ para passar o tempo)' : b ? '⚠️ ' + b : 'Fica dentro do círculo enquanto anexas. Dá +' + XP_POR_ANEXAR + ' XP.'}</div>
-      <div class="acoes">${aAnexar ? btn('Parar', () => { P.anexando = null; tick(); }) : btn(aqui ? 'Anexar' : 'Vai ao local', () => { P.anexando = p.id; P.presencas['poi:' + p.id] = agora(); cumprir('anexar'); tick(); }, aqui && !b, 'ok')}</div></div>`;
+      <div class="nota">${aAnexar ? '⏳ A anexar · fica no local (usa ⏩ para passar o tempo)' : b ? '⚠️ ' + b : 'Fica a menos de ' + RAIO_ANEXAR + ' m enquanto anexas (se saíres, pausa). Dá +' + XP_POR_ANEXAR + ' XP.'}</div>
+      <div class="acoes">${aAnexar ? btn('Parar', () => { P.anexando = null; tick(); }) : btn(aquiAnexar ? 'Anexar' : 'Vai ao local', () => { P.anexando = p.id; P.presencas['poi:' + p.id] = agora(); cumprir('anexar'); tick(); }, aquiAnexar && !b, 'ok')}</div></div>`;
   } else if (c.depositaAs !== undefined) {
     h += `<div class="bloco"><div class="r">🏆 Teu</div><div class="v">${fmtRec(comTesouro(c.produz))} por dia às ${c.depositaAs}h</div>
       <div class="nota">Entra sozinho na tua conta à hora de fecho, todos os dias (mesmo que te falte ouro para o consumo). Não precisas de vir recolher.</div></div>`;
@@ -851,7 +957,7 @@ function renderPoi() {
     h += `<div class="bloco"><div class="r">🏛️ Monumento nível ${nv}/${max} · produz +${Math.round((nv - 1) * 25)}%</div>`;
     if (e.melhoria) h += `<div class="nota">A melhorar para o nível ${e.melhoria.nv} · pronto em ${fmtTempo(e.melhoria.fim - agora())}</div></div>`;
     else if (nv >= max) h += `<div class="nota">Nível máximo com 🏛️ Guardiões ${P.cien.guardioes}.</div></div>`;
-    else h += `<div class="nota">Nível ${nv + 1}: ${fmtRec(m.custo)} · ${m.horas} h. Tens de estar no monumento.</div>
+    else h += `<div class="nota">Nível ${nv + 1}: ${fmtCusto(m.custo)} · ${m.horas} h. Tens de estar no monumento.</div>
       <div class="acoes">${btn('Melhorar', () => { pagar(m.custo); e.melhoria = { nv: nv + 1, fim: agora() + m.horas * HORA }; aviso(`🏛️ A melhorar ${p.nome} (${m.horas} h)`); tick(); }, aqui && temRec(m.custo), 'ok')}</div></div>`;
   }
   const alegriaTxt = c.alegria ? ` · +${Math.max(1, bonus().alegriaMonumentoGrande)} alegria enquanto for teu` : '';
@@ -974,10 +1080,10 @@ function renderCasa() {
   if (nivel() < 3) { cab('🏠', 'Casa', 'Disponível no nível 3'); $('fCorpo').innerHTML = '<div class="nota">Chega ao nível 3 para escolher a casa.</div>'; return; }
   if (!P.casa) {
     const ok = posAtual && concelhoDe(posAtual.lat, posAtual.lng, CONCELHOS), custo = CONSTRUCOES.casa.niveis[0].custo;
-    cab('🏠', 'Escolher casa', 'A casa fica onde estás agora');
-    $('fCorpo').innerHTML = `<div class="nota">Custa ${fmtRec(custo)} e demora ${CONSTRUCOES.casa.niveis[0].horas} h a construir. Tem de ser dentro dos concelhos.</div>
-      <div class="acoes">${btn('Definir casa aqui', () => { pagar(custo); P.casa = { lat: posAtual.lat, lng: posAtual.lng };
-        P.obra = { k: 'casa', nv: 1, fim: agora() + CONSTRUCOES.casa.niveis[0].horas * HORA }; desenharCasa(); tick(); }, ok && temRec(custo), 'ok')}</div>`;
+    cab('🏠', 'Escolher casa', `Escolhes o sítio no mapa, até ${RAIO_CASA} m de onde estás`);
+    $('fCorpo').innerHTML = `<div class="nota">Custa ${fmtCusto(custo)} e demora ${CONSTRUCOES.casa.niveis[0].horas} h a construir. Tem de ser dentro dos concelhos.
+      Escolhes o sítio no mapa: tu tens de ficar dentro do círculo da casa (${RAIO_CASA} m), mas ela não tem de ficar exatamente onde estás.</div>
+      <div class="acoes">${btn('📍 Escolher o sítio no mapa', comecarEscolherCasa, !!posAtual && temRec(custo), 'ok')}</div>`;
     return;
   }
   cab('🏠', `Casa nível ${P.niv.casa || '— (em obra)'}`, `${emCasa() ? 'Estás em casa' : distTxt(P.casa, RAIO_CASA)}`);
@@ -993,14 +1099,14 @@ function renderCasa() {
     h += `<div class="seccao">Armazenamento</div>
       <div class="bloco"><div class="r">🧱 Materiais (pedra + ferro + madeira, partilhado)</div><div class="v">${totalMat()} / ${capMat()}</div><div class="barra"><div style="width:${Math.min(100, totalMat() / capMat() * 100)}%"></div></div>
       <div class="nota">Mochila ${ARMAZENAMENTO.mochila.materiais} + casa ${ARMAZENAMENTO.casa.materiais} (protegidos) + ${P.baus} baú(s) × 300 (podem ser roubados)${P.bausAChegar.length ? ` · ${P.bausAChegar.length} a chegar` : ''}</div>
-      <div class="acoes">${btn(`🧰 Comprar baú (${precoB} 🪙 · ${P.baus + P.bausAChegar.length}/${maxB})`, () => { P.r.ouro -= precoB; P.bausAChegar.push(agora() + HORA); aviso('🧰 Baú comprado · chega em 1 h'); tick(); }, P.r.ouro >= precoB && P.baus + P.bausAChegar.length < maxB)}</div></div>
+      <div class="acoes">${btn(`🧰 Comprar baú (${fmtCusto({ ouro: precoB })} · ${P.baus + P.bausAChegar.length}/${maxB} baús)`, () => { P.r.ouro -= precoB; P.bausAChegar.push(agora() + HORA); aviso('🧰 Baú comprado · chega em 1 h'); tick(); }, P.r.ouro >= precoB && P.baus + P.bausAChegar.length < maxB)}</div></div>
       <div class="bloco"><div class="r">🍞 Comida${P.r.pao ? ' + 🥖 pão' : ''}</div><div class="v">${Math.floor(totalComida())} / ${capComida()}</div><div class="barra"><div style="width:${Math.min(100, totalComida() / capComida() * 100)}%"></div></div>
       <div class="nota">Mochila ${ARMAZENAMENTO.mochila.comida} + casa ${ARMAZENAMENTO.casa.comida} (protegidos) + frigorífico ${capFrigorifico()}${bonus().frigorificoExtra ? ` (🏡 celeiro +${Math.round(bonus().frigorificoExtra * 100)}%)` : ''}${P.r.pao ? ` · 🥖 ${P.r.pao} pão (1 lugar cada)` : ''}</div></div>`;
     if (eHumano()) {
       const C = CONSTRUCOES.cao, req = C.niveis[0], b = bloqueioCao();
       h += `<div class="bloco"><div class="r">${C.icone} ${C.nome} · ${P.caes}/${C.maxCaes}</div>
         <div class="nota">${C.descricao} Chance agora: ${Math.round(bonus().defesaCao * 100)}% (🏡 Lar 2–6%).</div>
-        <div class="acoes">${btn(`Comprar cão (${fmtRec(req.custo)})${b && P.caes < C.maxCaes ? ' · ' + b : ''}`, comprarCao, !b)}</div></div>`;
+        <div class="acoes">${btn(`Comprar cão (${fmtCusto(req.custo)})${b && P.caes < C.maxCaes ? ' · ' + b : ''}`, comprarCao, !b)}</div></div>`;
     }
   }
   h += `<div class="seccao">Construções</div>${bonus().tempoObra ? `<div class="nota">🥾 Mão-de-obra: obras −${Math.round(bonus().tempoObra * 100)}% do tempo.</div>` : ''}`;
@@ -1009,7 +1115,7 @@ function renderCasa() {
     const atual = casaNv(k), max = atual >= niveisPara(k), b = bloqueioConstruir(k);
     const prox = max ? null : c.niveis[atual];
     h += `<div class="linhaItem${max ? ' feita' : ''}"><span>${c.icone}</span><span class="t">${c.nome} ${atual ? 'nível ' + atual : ''}
-      <small>${max ? 'Nível máximo' : `→ nível ${atual + 1}: ${fmtRec(custoFinal(k, atual))} · ${horasObra(prox.horas)} h${b ? ' · ' + b : ''}`}${c.descricao && !atual ? '<br>' + c.descricao : ''}</small></span>
+      <small>${max ? 'Nível máximo' : `→ nível ${atual + 1}: ${fmtCusto(custoFinal(k, atual))} · ${horasObra(prox.horas)} h${b ? ' · ' + b : ''}`}${c.descricao && !atual ? '<br>' + c.descricao : ''}</small></span>
       ${max || k === 'casa' && !P.niv.casa ? '' : btn('Construir', () => construir(k), !b)}</div>`;
   }
   $('fCorpo').innerHTML = h;
@@ -1071,7 +1177,7 @@ function renderCiencia() {
     // nos ramos com uma lista de desbloqueios (🔨 Ofícios) mostra-se o que dá o próximo nível
     const dá = nv && typeof r.niveis[atual] === 'string' ? `<br>Nível ${atual + 1} dá: ${r.niveis[atual]}` : '';
     return `<div class="linhaItem${atual >= NIVEL_MAX_RAMO ? ' feita' : ''}"><span>${r.icone}</span><span class="t">${r.nome} · nível ${atual}/${NIVEL_MAX_RAMO}
-      <small>${r.descricao}${dá}${nv ? `<br>→ nível ${atual + 1}: 🔬 ${nv.ciencia} · ${nv.horas} h${nivel() < nv.nivelJogador ? ` · precisa do nível ${nv.nivelJogador}` : ''}` : ''}</small></span>
+      <small>${r.descricao}${dá}${nv ? `<br>→ nível ${atual + 1}: ${fmtCusto({ ciencia: nv.ciencia })} · ${nv.horas} h${nivel() < nv.nivelJogador ? ` · precisa do nível ${nv.nivelJogador}` : ''}` : ''}</small></span>
       ${nv ? btn('Investigar', () => { P.r.ciencia -= prox.ciencia; P.inv = { ramo: id, nivel: prox.nivel, fim: agora() + prox.horas * HORA }; tick(); }, ok) : ''}</div>`;
   };
   for (const [id, r] of Object.entries(RAMOS_CIENCIA)) h += linha(id, r, NIVEIS_CIENCIA);
@@ -1113,7 +1219,7 @@ function renderPerfil() {
       if (m.tipo === 'foto') acao = btn('📸 Fotografar', () => perguntar('📸', m.titulo,
         'Simulação: aqui a fotografia conta em qualquer sítio. No jogo real tens de estar no sítio certo (o GPS confirma).',
         'Tirar fotografia', () => { cumprir(m.id); mostrar(FACOES[m.facao].icone, FACOES[m.facao].nome, m.texto); }));
-      if (m.tipo === 'pesquisa') acao = btn(`Pagar ${fmtRec(m.custo)}`, () => { pagar(m.custo); cumprir(m.id); mostrar(FACOES[m.facao].icone, m.titulo, m.texto); }, temRec(m.custo));
+      if (m.tipo === 'pesquisa') acao = btn(`Pagar ${fmtCusto(m.custo)}`, () => { pagar(m.custo); cumprir(m.id); mostrar(FACOES[m.facao].icone, m.titulo, m.texto); }, temRec(m.custo));
       if (m.tipo === 'facao') {
         const livres = Object.keys(FACOES).filter(f => !Object.values(P.provas).includes(f) && provaCumprida(f));
         acao = livres.map(f => btn(FACOES[f].icone, () => { P.provas[m.id] = f; cumprir(m.id); tick(); })).join(' ') || '<small>—</small>';
@@ -1137,15 +1243,16 @@ function renderPerfil() {
     <div class="stat"><div class="v">${fmtDist(P.distancia)}</div><div class="r">👣 Distância</div></div>
     <div class="stat"><div class="v">${POIS.filter(p => est(p.id).recon).length}</div><div class="r">🔍 Reconhecimentos</div></div></div>
     <div class="nota">${P.consumo.proximo ? `Próximo consumo (${fmtRec(consumoDia())}) em ${fmtTempo(P.consumo.proximo - agora())}${P.consumo.diasFome ? ` · ⚠️ ${P.consumo.diasFome} dia(s) sem comida` : ''}` : `Consumo diário a partir do nível ${NIVEL_CONSUMO}.`}</div>
+    <div class="acoes">${btn('🧹 Apagar percurso', () => { P.percurso = []; cortarPercurso(); desenharPercurso(); aviso('Percurso apagado'); tick(); }, !!(P.percurso && P.percurso.length))}</div>
     <div class="acoes">${btn('Apagar personagem', () => perguntar('🗑️', 'Apagar personagem', 'Perdes todo o progresso e começas do zero.', 'Apagar',
       () => { localStorage.removeItem(CHAVE); P = null; location.reload(); }), true, 'perigo')}</div>`;
   $('fCorpo').innerHTML = h;
 }
 // Perguntas e mensagens dentro da página (as janelas confirm/alert do navegador não funcionam no painel da app)
-function perguntar(icone, titulo, texto, simTxt, fn) {
+function perguntar(icone, titulo, texto, simTxt, fn, voltar = 'perfil') {   // voltar: a folha que se abre ao cancelar
   cab(icone, titulo, '');
   $('fCorpo').innerHTML = `<div class="nota" style="font-size:14px">${texto}</div>
-    <div class="acoes">${btn('Cancelar', () => abrir('perfil'))}${btn(simTxt, fn, true, 'ok')}</div>`;
+    <div class="acoes">${btn('Cancelar', () => abrir(voltar))}${btn(simTxt, fn, true, 'ok')}</div>`;
   aberto = 'pergunta'; $('folha').classList.remove('escondido');
 }
 function mostrar(icone, titulo, texto) {
@@ -1171,7 +1278,7 @@ function abrirEditar() {
     <div class="acoes">${btn('Guardar', () => {
       const nome = $('editNome').value.trim(); if (!nomeValido(nome)) return aviso('Nome inválido: mínimo 3 caracteres (letras, números, espaço, _ e -)', true);
       if (nome !== P.nome) cumprir('nome'); if (edicao.avatar !== P.avatar || edicao.cor !== P.cor) cumprir('avatar');
-      P.nome = nome; P.avatar = edicao.avatar; P.cor = edicao.cor; marcador.setIcon(iconeJogador()); desenharCasa();
+      P.nome = nome; P.avatar = edicao.avatar; P.cor = edicao.cor; marcador.setIcon(iconeJogador()); desenharCasa(); desenharPercurso();
       document.activeElement.blur(); aberto = 'perfil'; tick();
     }, true, 'ok')}</div>`;
   montarCriacao('eA', 'eC', edicao);
@@ -1189,7 +1296,7 @@ function ativarModoTeste(motivo) {
   if (modoTeste) return;
   modoTeste = true; estadoGps = `${motivo} · toca no mapa para andar`;
   document.querySelector('.tempo').classList.remove('escondido');
-  mapa.on('click', e => moverPara(e.latlng));
+  mapa.on('click', e => { if (!escolhendoCasa) moverPara(e.latlng); });   // a escolher a casa, tocar escolhe o sítio
   moverPara(L.latLng(P.pos));
 }
 let estadoGps = 'A procurar GPS…';
@@ -1219,7 +1326,7 @@ function iniciarJogo() {
   const lim = desenharFronteiras();
   mapa.setMaxBounds(lim.pad(.15));
   mapa.setView(P.pos, 15);
-  desenharPois(); desenharCasa(); desenharEsconderijos();
+  desenharPois(); desenharCasa(); desenharEsconderijos(); desenharPercurso();
   if (PEDIU_TESTE) ativarModoTeste('Modo de teste'); else iniciarGps();
   setInterval(tick, 1000);
   // manter o ecrã ligado enquanto o jogo está aberto (se o telemóvel deixar)

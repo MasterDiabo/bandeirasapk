@@ -177,6 +177,8 @@ function simular() {
     }
     // 1c) Missões diárias: 10 XP cada + o lote de recursos dessa missão
     for (let i = 0; i < diarias; i++) { s.xp += XP_DIARIA; s.xpDiarias += XP_DIARIA; add(PREMIOS_DIARIAS[i]); }
+    // 1d) Baú diário: 3 recursos ao calhas entre 5 → em média 0,6 de cada por dia
+    add(Object.fromEntries(BAU_DIARIO.recursos.map(k => [k, BAU_DIARIO.quantos * BAU_DIARIO.quantidade / BAU_DIARIO.recursos.length])));
     if (d === 1 && reconDia) marca(1, `🔍 Começa a fazer ${reconDia} reconhecimentos por dia`, 'missao');
 
     // 2) Anexar

@@ -133,6 +133,14 @@ const PREMIOS_DIARIAS = [
   { ouro: 3, ferro: 1, ciencia: 1 },
   { ouro: 3, madeira: 1 },
 ];
+// ---- Baú diário -----------------------------------------------------------
+// Uma vez por dia (muda à meia-noite) abre-se no perfil 👤 e dá 3 recursos diferentes ao calhas, 1 de cada.
+const BAU_DIARIO = { recursos: ['comida', 'pedra', 'ferro', 'madeira', 'ciencia'], quantos: 3, quantidade: 1 };
+function sortearBauDiario() {
+  const l = [...BAU_DIARIO.recursos];
+  for (let i = l.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [l[i], l[j]] = [l[j], l[i]]; }
+  return Object.fromEntries(l.slice(0, BAU_DIARIO.quantos).map(k => [k, BAU_DIARIO.quantidade]));
+}
 // `conta` = o que faz avançar a missão · `alvo` = quanto é preciso · `nivel` = a partir de que nível pode sair
 const MISSOES_DIARIAS = [
   { id: 'andar2km',  conta: 'metros',      alvo: 2000, nivel: 0, titulo: 'Andar 2 km' },

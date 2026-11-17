@@ -135,7 +135,7 @@
 <section id="criacao" class="escondido">
   <div class="cartao">
     <img class="logotipo" src="logotipo.png" alt="Bandeiras · Explora · Reconhece · Anexa">
-    <p class="sub">Jogo completo (teste) · Sintra, Mafra, Torres Vedras, Loures, Lisboa, Almada, Évora e Kildare (Irlanda). Começas no nível 0: explora, reconhece e anexa sítios reais. Aceita o pedido de localização.</p>
+    <p class="sub">Jogo completo (teste) · Sintra, Mafra, Torres Vedras, Loures, Lisboa, Almada, Évora, Aveiro, Ílhavo, Leiria e Kildare (Irlanda). Começas no nível 0: explora, reconhece e anexa sítios reais. Aceita o pedido de localização.</p>
     <label class="titulo">A tua personagem</label>
     <div style="display:flex;align-items:center;gap:12px;margin:6px 0 4px">
       <div class="avatar" id="novoAvatar"></div><div class="nomeprev" id="novoNome"></div>
@@ -662,6 +662,14 @@ function progDiaria(conta, n = 1) {
     setTimeout(() => aviso(`📅 Missão diária: ${m.titulo} · +${XP_DIARIA} XP · ${fmtRec(PREMIOS_DIARIAS[i])}`), 60);
   });
 }
+// ---- Baú diário: abre-se uma vez por dia no perfil ----
+const bauAbertoHoje = () => P.bauDia === diaDe(agora());
+function abrirBauDiario() {
+  if (bauAbertoHoje()) return;
+  const g = sortearBauDiario();
+  P.bauDia = diaDe(agora()); ganhar(g, 'baú diário');
+  aviso(`🎁 Baú diário: ${fmtRec(g)}`); tick();
+}
 const missoesDisponiveis = () => MISSOES.filter(m => nivel() >= m.nivel && !P.missoes[m.id]);
 // Uma fação conta para as missões dos níveis 7–9 se tem a construção ligada OU reconheceu/anexou um POI ligado (gnomos: ou vendeu na feira)
 function provaCumprida(f) {
@@ -850,7 +858,7 @@ function atualizarHud() {
   $('hudEnergiaTxt').textContent = `🏛️ POIs ${meus().length}/${maxEdificiosNivel(nivel())}${P.anexando ? ' (+1 a anexar)' : ''} · ⚡ ${P.energia}/${energiaMax()} · +${Math.round(regenHora() * 10) / 10}/h · 😊 ${alegria()} · 🧱 ${totalMat()}/${capMat()} · 🍞 ${Math.floor(totalComida())}/${capComida()}`;
   $('hudEnergia').style.width = (P.energia / energiaMax() * 100) + '%';
   $('hudRecursos').innerHTML = REC.filter(k => k !== 'pao' || eHumano() || P.r.pao).map(k => `<span>${ic(k)} ${Math.floor(P.r[k])}</span>`).join('');
-  const pend = missoesDisponiveis().length + diariasDeHoje().lista.filter(x => !x.feita).length;
+  const pend = missoesDisponiveis().length + diariasDeHoje().lista.filter(x => !x.feita).length + (bauAbertoHoje() ? 0 : 1);
   $('btnEsc').classList.toggle('escondido', !(eElfo() && bonus().esconderijos));
   $('badge').textContent = pend; $('badge').classList.toggle('escondido', !pend);
 }
@@ -1212,7 +1220,11 @@ function renderPerfil() {
   cab(P.avatar, P.nome, `Militante · Nível ${n} · ${P.xp} XP${P.facao ? ' · ' + FACOES[P.facao].nome : ''}`);
   $('fIcone').style.background = P.cor;
   const D = diariasDeHoje(), meiaNoite = new Date(agora()); meiaNoite.setHours(24, 0, 0, 0);
-  let h = `<div class="seccao">📅 Missões diárias · novas em ${fmtTempo(meiaNoite - agora())}</div>`;
+  const bauFeito = bauAbertoHoje();
+  let h = `<div class="seccao">🎁 Baú diário</div>
+    <div class="linhaItem${bauFeito ? ' feita' : ''}"><span>🎁</span><span class="t">${bauFeito ? 'Já abriste o baú de hoje' : 'Tens um baú à tua espera'}
+      <small>${bauFeito ? `Novo baú em ${fmtTempo(meiaNoite - agora())}` : `${BAU_DIARIO.quantos} recursos ao calhas`}</small></span>${bauFeito ? '' : btn('Abrir', abrirBauDiario)}</div>`;
+  h += `<div class="seccao">📅 Missões diárias · novas em ${fmtTempo(meiaNoite - agora())}</div>`;
   D.lista.forEach((x, i) => {
     const m = MISSOES_DIARIAS.find(y => y.id === x.id); if (!m) return;
     const fmtProg = v => m.conta === 'metros' ? fmtDist(v) : m.conta.startsWith('min') ? fmtTempo(v * MIN) : Math.floor(v);

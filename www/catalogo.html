@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catálogo de POIs</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root { --bg: #14170f; --painel: #1f2418; --painel2: #2a3121; --borda: #3b4530; --texto: #e8ecd9; --suave: #a3ad8c; --acento: #c9a227; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #mapa { position: fixed; inset: 0; }
+  .painel { position: fixed; top: 12px; left: 12px; z-index: 1000; width: 330px; max-width: calc(100% - 24px); max-height: calc(100% - 24px);
+    overflow-y: auto; background: rgba(31,36,24,.96); border: 1px solid var(--borda); border-radius: 14px; padding: 14px; }
+  h1 { margin: 0 0 2px; font-size: 18px; color: var(--acento); }
+  .sub { font-size: 12px; color: var(--suave); margin-bottom: 10px; }
+  input[type=search] { width: 100%; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--borda); background: var(--painel2); color: var(--texto); font-size: 14px; }
+  .cat { display: flex; align-items: flex-start; gap: 8px; padding: 8px; border-radius: 9px; background: var(--painel2); margin-top: 6px; cursor: pointer; user-select: none; }
+  .cat.off { opacity: .4; }
+  .cat .bola { width: 12px; height: 12px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; border: 2px solid #fff; }
+  .cat .info { flex: 1; min-width: 0; }
+  .cat .nome { font-weight: 600; font-size: 14px; }
+  .cat .regra { font-size: 11px; color: var(--suave); margin-top: 2px; line-height: 1.35; }
+  .cat .n { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .total { margin-top: 10px; font-size: 12px; color: var(--suave); }
+  .recolher { display: none; width: 100%; margin-top: 8px; padding: 8px; border-radius: 9px; border: 1px solid var(--borda); background: var(--painel2); color: var(--texto); }
+  @media (max-width: 600px) {
+    .painel { top: auto; bottom: 0; left: 0; width: 100%; max-width: 100%; max-height: 55%; border-radius: 14px 14px 0 0; }
+    .painel.fechado .corpo { display: none; }
+    .recolher { display: block; }
+  }
+  .leaflet-popup-content { font-size: 13px; line-height: 1.45; }
+  .leaflet-popup-content b { font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="mapa"></div>
+<div class="painel" id="painel">
+  <h1>Catálogo de POIs</h1>
+  <div class="sub">Sintra · Mafra · Torres Vedras · Loures · Lisboa · Almada · Évora · Aveiro · Ílhavo · Leiria · Kildare (Irlanda). Escolhidos automaticamente do OpenStreetMap + manuais.</div>
+  <div class="corpo">
+    <input type="search" id="procura" placeholder="Procurar pelo nome…">
+    <div id="categorias"></div>
+    <div class="total" id="total"></div>
+  </div>
+  <button class="recolher" id="recolher">Mostrar / esconder lista</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="dados/concelhos.js"></script>
+<script src="dados/osm-pois.js"></script>
+<script src="dados/pois-manuais.js"></script>
+<script src="categorias.js"></script>
+<script>
+const POIS = construirPois(OSM_POIS, POIS_MANUAIS, POIS_EXCLUIDOS, CONCELHOS);
+const NOMES_CONCELHOS = Object.keys(CONCELHOS);
+const ativas = new Set(CATEGORIAS.map(c => c.id));
+let filtroNome = '';
+
+const esc = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+const fmtRec = obj => Object.entries(obj).map(([k, v]) => `${RECURSOS[k].icone} ${v} ${RECURSOS[k].nome}`).join(' + ');
+function regraTexto(c) {
+  const ciclo = c.cicloHoras === 24 ? 'por dia' : c.cicloHoras === 1 ? 'por hora' : `a cada ${c.cicloHoras}h`;
+  if (c.depositaAs !== undefined) return `Anexar ${c.horasAnexar}h · ${fmtRec(c.produz)} por dia, entregue sozinho às ${c.depositaAs}h (sem recolha)` +
+    (LIMITES_POR_CONCELHO[c.id] ? ` · máx. ${LIMITES_POR_CONCELHO[c.id]} por concelho` : '');
+  const h = c.cicloHoras * c.maxCiclos;
+  const max = h % 24 === 0 ? `${h / 24} dia${h > 24 ? 's' : ''}` : `${h}h`;
+  return `Anexar ${c.horasAnexar}h · ${fmtRec(c.produz)} ${ciclo}` +
+    (c.horasPorDia ? ` (só ${c.horasPorDia}h em cada 24h)` : '') + ` · acumula ${max}` +
+    (c.minutosParaRecolher ? ` · ${c.minutosParaRecolher} min no local para recolher` : '') +
+    (c.dentroDosLimites ? ` · anexa-se DENTRO dos limites, sem gastar energia (anexar ou andar) · cada km lá dentro tira ${c.minutosPorKmDentro} min · +${c.alegria} alegria` : '') +
+    (LIMITES_POR_CONCELHO[c.id] ? ` · máx. ${LIMITES_POR_CONCELHO[c.id]} por concelho` : '');
+}
+
+// ---- Mapa ----
+const mapa = L.map('mapa', { preferCanvas: true });
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(mapa);
+const poligonos = g => g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+const aneis = [], linhas = [];
+for (const g of Object.values(CONCELHOS)) for (const p of poligonos(g)) {
+  const a = p[0].map(([lng, lat]) => [lat, lng]); aneis.push(a);
+  linhas.push(L.polyline(a.concat([a[0]]), { color: '#c9a227', weight: 2 }));
+}
+L.polygon([[[-90, -180], [-90, 180], [90, 180], [90, -180]], ...aneis], { stroke: false, fillColor: '#14170f', fillOpacity: .55, interactive: false }).addTo(mapa);
+const grupoLinhas = L.featureGroup(linhas).addTo(mapa);
+mapa.fitBounds(grupoLinhas.getBounds());
+
+const camada = L.layerGroup().addTo(mapa);
+const marcadores = POIS.map(p => {
+  const c = categoriaPorId(p.cat);
+  const m = L.circleMarker([p.lat, p.lng], {
+    radius: p.origem === 'manual' ? 8 : 6, color: '#fff', weight: p.origem === 'manual' ? 2.5 : 1.5,
+    fillColor: c.cor, fillOpacity: .95,
+  });
+  const fonte = p.origem === 'manual' ? 'POI manual'
+    : `<a href="https://www.openstreetmap.org/${{ n: 'node', w: 'way', r: 'relation' }[p.osmId[0]]}/${p.osmId.slice(1)}" target="_blank" rel="noopener">ver no OpenStreetMap</a>`;
+  const popup = `<b>${c.icone} ${esc(p.nome)}</b><br>${c.nome} · ${p.concelho || 'fora dos 3 concelhos'}<br><span style="color:#666">${regraTexto(c)}</span><br>${fonte}`;
+  m.bindPopup(popup);
+  // Monumentos grandes: desenhar os limites
+  if (p.geo) {
+    const forma = [];
+    const estilo = { color: c.cor, weight: 3, opacity: .9 };
+    p.geo.areas.forEach(a => forma.push(L.polyline(a, { ...estilo, dashArray: '6 4' })));
+    p.geo.linhas.forEach(l => forma.push(L.polyline(l, estilo)));
+    p.geo.pontos.forEach(pt => forma.push(L.circle(pt, { radius: RAIO_TROCOS_M, color: c.cor, weight: 2, fillOpacity: .2 })));
+    const g = L.featureGroup(forma).bindPopup(popup);
+    return { p, m: L.featureGroup([g, m]) };
+  }
+  return { p, m };
+});
+
+const detalheFeiras = () => NOMES_CONCELHOS.map(n => `${n} ${FEIRAS_CAND.filter(f => f.concelho === n).length}`).join(' · ');
+
+// ---- Feiras: locais possíveis (pontos lilás pequenos) e a feira ativa hoje em cada concelho ----
+const FEIRAS_CAND = candidatosFeira(OSM_POIS, CONCELHOS);
+let mostrarFeiras = true;
+const camadaFeiras = L.layerGroup().addTo(mapa);
+function desenharFeiras() {
+  camadaFeiras.clearLayers();
+  if (!mostrarFeiras) return;
+  for (const f of FEIRAS_CAND) L.circleMarker([f.lat, f.lng], { radius: 4, color: FEIRA.cor, weight: 1.5, fillOpacity: .3 })
+    .bindPopup(`<b>Local possível de feira</b><br>${esc(f.nome)} · ${f.concelho}`).addTo(camadaFeiras);
+  for (const n of NOMES_CONCELHOS) {
+    const f = feiraAtiva(FEIRAS_CAND, n);
+    if (!f) continue;
+    L.marker([f.lat, f.lng], { icon: L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17],
+      html: `<div style="width:34px;height:34px;border-radius:50%;background:${FEIRA.cor};border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px">${FEIRA.icone}</div>` }) })
+      .bindPopup(`<b>${FEIRA.icone} Feira ativa · ${n}</b><br>${esc(f.nome)}<br>Até ${f.ate.toLocaleDateString('pt-PT')} · depois muda de sítio<br>
+        <span style="color:#666">Anexar ${FEIRA.horasAnexar * 60} min · permite vender recursos enquanto lá estiver</span>`).addTo(camadaFeiras);
+  }
+}
+
+function desenhar() {
+  camada.clearLayers();
+  desenharFeiras();
+  const contagem = {}, porConcelho = {};
+  for (const { p, m } of marcadores) {
+    if (filtroNome && !p.nome.toLowerCase().includes(filtroNome)) continue;
+    contagem[p.cat] = (contagem[p.cat] || 0) + 1;
+    const k = p.cat + '|' + p.concelho; porConcelho[k] = (porConcelho[k] || 0) + 1;
+    if (ativas.has(p.cat)) camada.addLayer(m);
+  }
+  const detalhe = id => NOMES_CONCELHOS.map(n => `${n} ${porConcelho[id + '|' + n] || 0}`).join(' · ');
+  document.getElementById('categorias').innerHTML = CATEGORIAS.map(c => `
+    <div class="cat${ativas.has(c.id) ? '' : ' off'}" data-id="${c.id}">
+      <span class="bola" style="background:${c.cor}"></span>
+      <div class="info">
+        <div class="nome">${c.icone} ${c.nome} · <span class="n">${contagem[c.id] || 0}</span></div>
+        <div class="regra">${regraTexto(c)}</div>
+        <div class="regra">📍 ${detalhe(c.id)}</div>
+      </div>
+    </div>`).join('') + `
+    <div class="cat${mostrarFeiras ? '' : ' off'}" data-id="__feiras">
+      <span class="bola" style="background:${FEIRA.cor}"></span>
+      <div class="info">
+        <div class="nome">${FEIRA.icone} Feiras (mudam de sítio) · <span class="n">${FEIRAS_CAND.length}</span> locais possíveis</div>
+        <div class="regra">1 feira ativa por concelho, ${FEIRA.diasPorSitio} dias em cada sítio · anexar ${FEIRA.horasAnexar * 60} min · permite vender recursos</div>
+        <div class="regra">📍 ${detalheFeiras()}</div>
+      </div>
+    </div>`;
+  const visiveis = CATEGORIAS.filter(c => ativas.has(c.id)).reduce((s, c) => s + (contagem[c.id] || 0), 0);
+  document.getElementById('total').textContent =
+    `${visiveis} POIs visíveis de ${POIS.length} · ${POIS.filter(p => p.origem === 'manual').length} manuais (círculo maior). Toca numa categoria para a esconder.`;
+}
+document.getElementById('categorias').addEventListener('click', e => {
+  const el = e.target.closest('.cat'); if (!el) return;
+  const id = el.dataset.id;
+  if (id === '__feiras') { mostrarFeiras = !mostrarFeiras; desenhar(); return; }
+  ativas.has(id) ? ativas.delete(id) : ativas.add(id);
+  desenhar();
+});
+document.getElementById('procura').addEventListener('input', e => { filtroNome = e.target.value.trim().toLowerCase(); desenhar(); });
+document.getElementById('recolher').onclick = () => document.getElementById('painel').classList.toggle('fechado');
+desenhar();
+</script>
+</body>
+</html>

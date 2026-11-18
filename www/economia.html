@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador de economia</title>
+<style>
+  :root { --bg: #14170f; --painel: #1f2418; --painel2: #2a3121; --borda: #3b4530; --texto: #e8ecd9; --suave: #a3ad8c; --acento: #c9a227; --mau: #e0807d; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--texto); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { margin: 0; font-size: 24px; color: var(--acento); }
+  h2 { font-size: 16px; text-transform: uppercase; letter-spacing: 1px; color: var(--suave); margin: 28px 0 10px; }
+  .sub { color: var(--suave); font-size: 14px; margin: 4px 0 0; }
+  .grelha { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+  .cartao { background: var(--painel); border: 1px solid var(--borda); border-radius: 12px; padding: 12px 14px; }
+  label { display: block; font-size: 13px; color: var(--suave); }
+  input[type=number] { width: 100%; margin-top: 4px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--borda); background: var(--painel2); color: var(--texto); font-size: 15px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip { padding: 5px 9px; border-radius: 14px; border: 1px solid var(--borda); background: var(--painel2); font-size: 13px; cursor: pointer; user-select: none; }
+  .chip.on { border-color: var(--acento); background: rgba(201,162,39,.18); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+  .kpi .v { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kpi .r { font-size: 12px; color: var(--suave); }
+  .tabela { width: 100%; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--borda); white-space: nowrap; }
+  th { color: var(--suave); font-weight: 600; position: sticky; top: 0; background: var(--bg); }
+  td.n { text-align: right; }
+  tr.nivel td { color: var(--acento); font-weight: 600; }
+  tr.constr td { color: #9fd18b; }
+  tr.mau td { color: var(--mau); }
+  tr.missao td { color: #9cc7e6; }
+  .nota { font-size: 13px; color: var(--suave); line-height: 1.5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Simulador de economia</h1>
+  <p class="sub">Um jogador típico, dia a dia, do nível 0 ao 10: o que ganha, o que constrói e quando. Muda os valores e o resultado atualiza.</p>
+
+  <h2>Perfil do jogador</h2>
+  <div class="grelha">
+    <div class="cartao"><label>Km andados por dia (a pé ou de carro)<input type="number" id="km" value="10" min="0" step="0.5"></label></div>
+    <div class="cartao"><label>Horas por dia a anexar<input type="number" id="hAnexar" value="1.5" min="0" step="0.5"></label></div>
+    <div class="cartao"><label>Horas em casa contadas por dia<input type="number" id="hCasa" value="8" min="0" max="24"></label></div>
+    <div class="cartao"><label>POIs visitados por dia (recolha)<input type="number" id="visitas" value="2" min="0"></label></div>
+    <div class="cartao"><label>Recolhas em casa por dia<input type="number" id="recolhasCasa" value="2" min="0" max="4"></label></div>
+    <div class="cartao"><label>Reconhecimentos por dia (POIs novos visitados)<input type="number" id="recon" value="3" min="0"></label></div>
+    <div class="cartao"><label>Missões diárias feitas por dia (0–3)<input type="number" id="diarias" value="3" min="0" max="3"></label></div>
+    <div class="cartao"><label>Feira ao alcance (% das vezes)<input type="number" id="pctFeira" value="50" min="0" max="100" step="10"></label></div>
+    <div class="cartao"><label>Natureza perto de casa (ha de matas e parques, para a fação recomendada)<input type="number" id="naturezaHa" value="100" min="0" step="50"></label></div>
+    <div class="cartao"><label>Dias a simular<input type="number" id="dias" value="120" min="10" max="365"></label></div>
+  </div>
+  <div class="cartao" style="margin-top:10px">
+    <label>POIs ao alcance do jogador (os que consegue ir anexar)</label>
+    <div class="chips" id="alcance"></div>
+  </div>
+
+  <h2>Resultado</h2>
+  <div class="kpis" id="kpis"></div>
+
+  <h2>Marcos</h2>
+  <div class="tabela"><table id="marcos"></table></div>
+
+  <h2>Rendimento diário no fim da simulação</h2>
+  <div class="tabela"><table id="rendimento"></table></div>
+
+  <h2>Tabela de construções</h2>
+  <div class="tabela"><table id="tabelaConstr"></table></div>
+
+  <h2>Fações (escolhe-se no nível 10; as diferenças vêm só da árvore de ciência)</h2>
+  <div class="tabela"><table id="tabelaFacoes"></table></div>
+
+  <h2>Como o simulador decide</h2>
+  <p class="nota">
+    · Começa com 12 de comida (RECURSOS_INICIAIS em regras.js) e faz as missões de tutorial assim que pode.<br>
+    · Faz as missões diárias que escolheres (cada uma: 10 XP + o seu lote de recursos).<br>
+    · O primeiro POI a anexar é sempre de comida (missão do nível 1). Depois anexa por esta ordem: monumento, banco, ferragens, supermercado, banco, oficinas, monumento, comida, supermercado.<br>
+    · Recolhe todos os dias nos POIs com mais valor acumulado (até ao nº de visitas).<br>
+    · Constrói por esta prioridade: próximo nível da casa, cama, sofá, fábrica de pedra, serração, serralharia, quinta, e depois as melhorias.
+      Se a prioridade mais alta já está desbloqueada, junta recursos para ela em vez de gastar noutra coisa.<br>
+    · Uma construção de cada vez. Cada construção terminada dá XP. A energia não é simulada (com estes valores nunca falta).
+  </p>
+</main>
+
+<script src="categorias.js"></script>
+<script src="regras.js"></script>
+<script src="construcoes.js"></script>
+<script src="ciencia.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const REC = ['ouro', 'comida', 'pedra', 'ferro', 'madeira', 'ciencia'];
+const ic = k => RECURSOS[k].icone;
+const fmtCusto = c => Object.entries(c).map(([k, v]) => `${ic(k)} ${v}`).join(' ');
+
+// POIs ao alcance (por omissão: os comuns; oficinas são raras)
+const ALCANCE_OMISSAO = ['monumento', 'banco', 'mercado', 'comida', 'ferragens', 'escola', 'biblioteca'];
+const alcance = new Set(ALCANCE_OMISSAO);
+const CATS_ALCANCE = CATEGORIAS.filter(c => c.id !== 'monumento-grande');
+function desenharAlcance() {
+  $('alcance').innerHTML = CATS_ALCANCE.map(c =>
+    `<span class="chip${alcance.has(c.id) ? ' on' : ''}" data-id="${c.id}">${c.icone} ${c.nome}</span>`).join('');
+}
+$('alcance').onclick = e => {
+  const el = e.target.closest('.chip'); if (!el) return;
+  alcance.has(el.dataset.id) ? alcance.delete(el.dataset.id) : alcance.add(el.dataset.id);
+  desenharAlcance(); simular();
+};
+
+const PLANO_ANEXAR = ['monumento', 'banco', 'ferragens', 'biblioteca', 'mercado', 'escola', 'banco', 'pedra', 'metal', 'madeira', 'monumento', 'comida', 'mercado'];
+// (os baús não estão aqui: compram-se à parte, quando o espaço para materiais está a acabar)
+const PLANO_CONSTRUIR = [
+  'casa:1', 'cama:1', 'escritorio:1', 'frigorifico:1', 'fabricaPedra:1', 'casa:2', 'sofa:1', 'serracao:1', 'serralharia:1',
+  'frigorifico:2', 'casa:3', 'quinta:1', 'cama:2', 'sofa:2', 'escritorio:2', 'frigorifico:3',
+  'fabricaPedra:2', 'serracao:2', 'serralharia:2', 'quinta:2',
+  'fabricaPedra:3', 'serracao:3', 'serralharia:3', 'quinta:3',
+];
+
+function simular() {
+  const km = +$('km').value, hAnexar = +$('hAnexar').value, hCasa = +$('hCasa').value;
+  const visitas = +$('visitas').value, recolhasCasa = +$('recolhasCasa').value, DIAS = +$('dias').value;
+  const reconDia = +$('recon').value, pctFeira = +$('pctFeira').value, diarias = Math.min(3, +$('diarias').value);
+
+  const s = { xp: 0, r: { ouro: 0, comida: 0, pedra: 0, ferro: 0, madeira: 0, ciencia: 0, ...RECURSOS_INICIAIS },
+    cien: { vigor: 0, folego: 0, economia: 0 }, inv: null, pois: [], anexar: null, missoes: new Set(), nRecon: 0, xpRecon: 0, xpDiarias: 0,
+    niv: { casa: 0, cama: 0, sofa: 0, escritorio: 0, frigorifico: 0, fabricaPedra: 0, serracao: 0, serralharia: 0, quinta: 0 },
+    baus: 0, obra: null, diasFome: 0, totalFome: 0, perdido: 0, perdidoPor: {}, ouroVendas: 0 };
+  // Tutorial: o primeiro POI a anexar tem de dar comida (supermercado se houver, senão restaurante)
+  const primeiroComida = alcance.has('mercado') ? 'mercado' : alcance.has('comida') ? 'comida' : null;
+  const plano = PLANO_ANEXAR.filter(c => alcance.has(c));
+  if (primeiroComida) { plano.splice(plano.indexOf(primeiroComida), 1); plano.unshift(primeiroComida); }
+  let iPlano = 0;
+  const marcos = [];
+  let nivelAnt = 0, rendimentoUlt = {};
+  const marca = (d, texto, cls = '') => marcos.push({ d, texto, cls, r: { ...s.r } });
+
+  // O simulador não escolhe fação: fica no nível 10 (com no máximo 200 XP dentro dele)
+  const nivel = () => progressoNivel(Math.min(s.xp, XP_LIMITE_SEM_FACAO)).n;
+  const espacosFora = () => s.niv.casa ? CONSTRUCOES.casa.niveis[s.niv.casa - 1].espacosFora : 0;
+  const ocupadosFora = () => ['fabricaPedra', 'serracao', 'serralharia', 'quinta'].filter(k => s.niv[k] > 0).length;
+  const espacosDentro = () => s.niv.casa ? CONSTRUCOES.casa.niveis[s.niv.casa - 1].espacosDentro : 0;
+  const ocupadosDentro = () => ['cama', 'sofa', 'escritorio'].filter(k => s.niv[k] > 0).length;
+  // Armazenamento: materiais (pedra+ferro+madeira, espaço partilhado) = mochila ou casa + baús;
+  // comida (espaço próprio) = mochila ou casa + frigorífico; ouro sem limite
+  const MAT = ARMAZENAMENTO.materiais;
+  const totalMat = () => MAT.reduce((t, k) => t + s.r[k], 0);
+  // A mochila conta sempre; a casa soma-se; baús e frigorífico são acréscimos
+  const capMat = () => ARMAZENAMENTO.mochila.materiais + (s.niv.casa ? ARMAZENAMENTO.casa.materiais : 0)
+    + s.baus * CONSTRUCOES.bau.niveis[0].capacidade;
+  const capComida = () => ARMAZENAMENTO.mochila.comida + (s.niv.casa ? ARMAZENAMENTO.casa.comida : 0)
+    + (s.niv.frigorifico ? CONSTRUCOES.frigorifico.niveis[s.niv.frigorifico - 1].capacidade : 0);
+
+  // Missões de tutorial
+  const cumprir = (d, id) => {
+    if (s.missoes.has(id)) return;
+    const m = MISSOES.find(x => x.id === id);
+    s.missoes.add(id); s.xp += m.xp;
+    if (m.recursos) for (const [k, v] of Object.entries(m.recursos)) s.r[k] += v;
+    marca(d, `📜 Missão: ${m.titulo} (+${m.xp} XP${m.recursos ? ' + ' + fmtCusto(m.recursos) : ''})`, 'missao');
+  };
+  cumprir(1, 'nome'); cumprir(1, 'avatar');
+  if (km >= 1) cumprir(1, 'andar1km');
+
+  for (let d = 1; d <= DIAS; d++) {
+    const ganho = { ouro: 0, comida: 0, pedra: 0, ferro: 0, madeira: 0, ciencia: 0 };
+    const add = (obj, mult = 1) => { for (const [k, v] of Object.entries(obj)) { s.r[k] += v * mult; ganho[k] += v * mult; } };
+
+    // 1) Andar
+    s.xp += km * XP_POR_KM;
+
+    // 1b) Reconhecimento de POIs novos (1 recurso ao calhas; XP só abaixo do nível 3)
+    for (let i = 0; i < reconDia; i++) {
+      const rec = RECONHECIMENTO.recursos[s.nRecon++ % RECONHECIMENTO.recursos.length];   // em média, 1 de cada a cada 5
+      add(premioReconhecimento(nivel(), rec));   // em dobro abaixo do nível 3
+      if (nivel() < RECONHECIMENTO.xpAteNivel) { s.xp += RECONHECIMENTO.xp; s.xpRecon += RECONHECIMENTO.xp; }
+    }
+    // 1c) Missões diárias: 10 XP cada + o lote de recursos dessa missão
+    for (let i = 0; i < diarias; i++) { s.xp += XP_DIARIA; s.xpDiarias += XP_DIARIA; add(PREMIOS_DIARIAS[i]); }
+    // 1d) Baú diário: 3 recursos ao calhas entre 5 → em média 0,6 de cada por dia
+    add(Object.fromEntries(BAU_DIARIO.recursos.map(k => [k, BAU_DIARIO.quantos * BAU_DIARIO.quantidade / BAU_DIARIO.recursos.length])));
+    if (d === 1 && reconDia) marca(1, `🔍 Começa a fazer ${reconDia} reconhecimentos por dia`, 'missao');
+
+    // 2) Anexar
+    if (!s.anexar && s.pois.length < maxEdificiosNivel(nivel()) && iPlano < plano.length) {
+      s.anexar = { cat: plano[iPlano++], h: 0 };
+      cumprir(d, 'anexar');
+    }
+    if (s.anexar) {
+      s.anexar.h += hAnexar;
+      const c = categoriaPorId(s.anexar.cat);
+      if (s.anexar.h >= c.horasAnexar) {
+        s.pois.push({ cat: c.id, acc: 0 });
+        s.xp += XP_POR_ANEXAR;
+        marca(d, `Anexou ${c.icone} ${c.nome} (+${XP_POR_ANEXAR} XP)`);
+        if (c.produz.comida) cumprir(d, 'comida');
+        s.anexar = null;
+      }
+    }
+    if (s.niv.casa) cumprir(d, 'zona');
+    // Conhecer as fações (assume-se que o jogador faz as missões assim que aparecem)
+    if (nivel() >= 5) ['fotoElfos', 'fotoGnomos', 'fotoHumanos'].forEach(id => cumprir(d, id));
+    // Estudar cada fação: 150 de ouro cada (paga-se quando houver ouro)
+    if (nivel() >= 6) for (const id of ['estudarElfos', 'estudarGnomos', 'estudarHumanos']) {
+      const m = MISSOES.find(x => x.id === id);
+      if (!s.missoes.has(id) && s.r.ouro >= m.custo.ouro) { s.r.ouro -= m.custo.ouro; cumprir(d, id); }
+    }
+    if (nivel() >= 7) cumprir(d, 'provaFacao1');
+    if (nivel() >= 8) cumprir(d, 'provaFacao2');
+    if (nivel() >= 9) cumprir(d, 'provaFacao3');
+    if (nivel() >= 10) cumprir(d, 'escolherFacao');
+
+    // 3) Produção e recolha dos POIs
+    for (const p of s.pois) { const c = categoriaPorId(p.cat); p.acc = Math.min(c.maxCiclos * c.cicloHoras, p.acc + (c.horasPorDia || 24)); }
+    // bancos: entregam sozinhos todos os dias (não gastam visitas)
+    for (const p of s.pois) { const c = categoriaPorId(p.cat); if (c.depositaAs !== undefined) { add(c.produz); p.acc = 0; } }
+    const valor = p => { const c = categoriaPorId(p.cat), n = Math.floor(p.acc / c.cicloHoras);
+      // os materiais são raros: um jogador esperto vai buscá-los primeiro
+      return Object.entries(c.produz).reduce((t, [k, v]) => t + v * n * (k === 'comida' ? (s.r.comida < 20 ? 10 : 0.3) : k === 'ouro' ? 1 : k === 'ciencia' ? 2 : 5), 0); };   // com pouca comida, vai buscar comida primeiro
+    // visitas em pessoa + recolhas à distância a partir do escritório
+    const remotas = s.niv.escritorio ? CONSTRUCOES.escritorio.niveis[s.niv.escritorio - 1].recolhasRemotasDia : 0;
+    s.pois.filter(p => categoriaPorId(p.cat).depositaAs === undefined).sort((a, b) => valor(b) - valor(a)).slice(0, visitas + remotas).forEach(p => {
+      const c = categoriaPorId(p.cat), n = Math.floor(p.acc / c.cicloHoras);
+      if (n) { add(c.produz, n); p.acc -= n * c.cicloHoras; }
+    });
+
+    // 4) Casa e construções exteriores
+    if (s.niv.casa) add(CONSTRUCOES.casa.niveis[s.niv.casa - 1].emCasaPorHora, hCasa);
+    for (const k of ['fabricaPedra', 'serracao', 'serralharia', 'quinta']) {
+      if (!s.niv[k]) continue;
+      const nv = CONSTRUCOES[k].niveis[s.niv[k] - 1];
+      const horas = Math.min(24, recolhasCasa * nv.maxHoras);
+      add(nv.produz, Math.floor(horas / nv.cicloHoras));
+    }
+
+    // 5) Consumo diário
+    if (nivel() >= NIVEL_CONSUMO) {
+      for (const [k, v] of Object.entries(CONSUMO_DIARIO)) { s.r[k] -= v; ganho[k] -= v; }
+      if (s.r.comida < 0) s.semComida = (s.semComida || 0) + 1;
+      if (s.r.ouro < 0) s.semOuroDias = (s.semOuroDias || 0) + 1;
+      if (s.r.comida < 0 || s.r.ouro < 0) { s.totalFome++; s.diaPrimeiraFome ||= d; if (s.totalFome <= 3) marca(d, `Sem ${s.r.comida < 0 ? 'comida' : 'ouro'} para o consumo diário`, 'mau'); }
+      s.r.comida = Math.max(0, s.r.comida); s.r.ouro = Math.max(0, s.r.ouro);
+    }
+
+    // 5b) Feira: num período de 3 dias em que a feira está ao alcance, vende o que sobra
+    const periodo = Math.floor((d - 1) / FEIRA.diasPorSitio);
+    const feiraPerto = (periodo * 37 + 11) % 100 < pctFeira;
+    if (feiraPerto && nivel() >= COMERCIO.nivelMinimo) {
+      if (!s.feiraVista) { s.feiraVista = true; marca(d, `${FEIRA.icone} Primeira feira ao alcance: começa a vender o que sobra`, 'missao'); }
+      let ouroHoje = 0;
+      // comida primeiro; depois os materiais de que há mais
+      const ordem = ['comida', ...[...MAT].sort((a, b) => s.r[b] - s.r[a])];
+      for (const rec of ordem) {
+        const preco = COMERCIO.precoVenda[rec];
+        // guarda uma reserva: 20 de comida; dos materiais só vende o que passa de 80% do espaço partilhado
+        let vende = rec === 'comida'
+          ? Math.max(0, Math.floor(s.r.comida - 10 * CONSUMO_DIARIO.comida))   // guarda comida para 10 dias
+          : Math.max(0, Math.min(Math.floor(s.r[rec]), Math.floor(totalMat() - capMat() * 0.8)));
+        vende = Math.min(vende, Math.floor((COMERCIO.limiteOuroDia - ouroHoje) / preco));
+        if (vende <= 0) continue;
+        const recebe = Math.floor(vende * preco);
+        s.r[rec] -= vende; ganho[rec] -= vende;
+        s.r.ouro += recebe; ganho.ouro += recebe; ouroHoje += recebe; s.ouroVendas += recebe;
+      }
+    }
+
+    // 5b2) Comprar baús (só ouro, chega 1 h depois, não ocupa a obra):
+    //      compra quando os materiais estão quase a não caber (faltam menos de 30 de espaço)
+    const B = CONSTRUCOES.bau, precoBau = B.niveis[0].custo.ouro;
+    while (s.niv.casa && s.baus < B.maxPorNivelCasa[s.niv.casa - 1] && s.r.ouro >= precoBau && totalMat() > capMat() - 30) {
+      s.r.ouro -= precoBau; s.baus++;
+      marca(d, `Comprou ${B.icone} ${s.baus}.º baú (${precoBau} 🪙, chega em ${B.niveis[0].horas} h) · cabem ${capMat()} materiais (no total)`, 'constr');
+    }
+
+    // 5c) Armazenamento: o que passa da capacidade perde-se
+    const perde = (k, q) => { s.r[k] -= q; s.perdido += q; s.perdidoPor[k] = (s.perdidoPor[k] || 0) + q; ganho[k] -= q; };
+    if (s.r.comida > capComida()) perde('comida', s.r.comida - capComida());
+    // materiais: o espaço é partilhado; deita fora do que há mais
+    let excesso = totalMat() - capMat();
+    while (excesso > 0) {
+      const k = [...MAT].sort((a, b) => s.r[b] - s.r[a])[0];
+      const q = Math.min(excesso, 1); perde(k, q); excesso -= q;
+    }
+
+    // 6) Construir (pode acabar uma obra e começar outra no mesmo dia)
+    let horasDia = 24;
+    while (horasDia > 0) {
+      if (s.obra) {
+        const usa = Math.min(horasDia, s.obra.falta);
+        s.obra.falta -= usa; horasDia -= usa;
+        if (s.obra.falta <= 0) {
+          s.niv[s.obra.k] = s.obra.nv;
+          s.xp += XP_POR_CONSTRUCAO;
+          const c = CONSTRUCOES[s.obra.k];
+          const extra = s.obra.k === 'frigorifico' ? ` · cabem ${capComida()} de comida` : '';
+          marca(d, `Construído ${c.icone} ${c.nome} nível ${s.obra.nv} (+${XP_POR_CONSTRUCAO} XP)${extra}`, 'constr');
+          s.obra = null;
+        }
+        continue;
+      }
+      // próxima construção: a primeira desbloqueada da lista de prioridades
+      const n = nivel();
+      let escolha = null;
+      for (const item of PLANO_CONSTRUIR) {
+        const [k, nvS] = item.split(':'); const nv = +nvS;
+        const c = CONSTRUCOES[k], req = c.niveis[nv - 1];
+        if (s.niv[k] !== nv - 1) continue;
+        if (req.nivelJogador && n < req.nivelJogador) continue;
+        if (req.nivelCasa && s.niv.casa < req.nivelCasa) continue;
+        if (c.tipo === 'fora' && nv === 1 && ocupadosFora() >= espacosFora()) continue;
+        if (c.tipo === 'dentro' && nv === 1 && ocupadosDentro() >= espacosDentro()) continue;
+        // só espera por ela se cabe no armazenamento e todos os recursos se conseguem obter
+        const custo = custoComCiencia(custoPara(req.custo, null, n), s.cien);   // 📈 Economia: desconto
+        const matCusto = MAT.reduce((t, r) => t + (custo[r] || 0), 0);
+        const obtenivel = matCusto <= capMat() && Object.entries(custo).every(([r, v]) => s.r[r] >= v || (rendimentoUlt[r] || 0) > 0);
+        if (!obtenivel) continue;
+        escolha = { k, nv, custo, horas: req.horas };
+        break;
+      }
+      if (!escolha) break;
+      const pode = Object.entries(escolha.custo).every(([r, v]) => s.r[r] >= v);
+      if (!pode) break;                   // a guardar recursos para esta
+      for (const [r, v] of Object.entries(escolha.custo)) s.r[r] -= v;
+      s.obra = { k: escolha.k, nv: escolha.nv, falta: escolha.horas };
+    }
+
+    // 6b) Investigar (à parte das construções): o ramo mais atrasado, Economia primeiro em caso de empate
+    let horasInv = 24;
+    while (horasInv > 0) {
+      if (s.inv) {
+        const usa = Math.min(horasInv, s.inv.falta); s.inv.falta -= usa; horasInv -= usa;
+        if (s.inv.falta > 0) break;
+        s.cien[s.inv.ramo] = s.inv.nivel;
+        const R = RAMOS_CIENCIA[s.inv.ramo];
+        marca(d, `🔬 Investigou ${R.icone} ${R.nome} nível ${s.inv.nivel}`, 'missao');
+        s.inv = null; continue;
+      }
+      const prox = ['economia', 'vigor', 'folego'].map(r => proximaCiencia(r, s.cien, nivel())).filter(Boolean)
+        .sort((a, b) => a.nivel - b.nivel)[0];
+      if (!prox || s.r.ciencia < prox.ciencia) break;
+      s.r.ciencia -= prox.ciencia;
+      s.inv = { ramo: prox.ramo, nivel: prox.nivel, falta: prox.horas };
+    }
+
+    rendimentoUlt = ganho;
+
+    // 7) Níveis
+    const n = nivel();
+    while (nivelAnt < n) { nivelAnt++; marca(d, `⬆️ Nível ${nivelAnt}` + (nivelAnt === 3 ? ' · pode construir a casa' : ''), 'nivel'); }
+  }
+
+  // ---- Mostrar ----
+  const diaNivel = n => (marcos.find(m => m.texto === `⬆️ Nível ${n}` || m.texto.startsWith(`⬆️ Nível ${n} `)) || {}).d;
+  // Fação recomendada para esta zona: produção diária de 1 POI de cada tipo ao alcance
+  const disponivel = {};
+  for (const id of alcance) {
+    const c = categoriaPorId(id);
+    const porDia = Math.min(24, c.maxCiclos * c.cicloHoras) / c.cicloHoras;
+    for (const [r, v] of Object.entries(c.produz)) disponivel[r] = (disponivel[r] || 0) + v * porDia;
+  }
+  // O que há à volta de casa: 1 de cada tipo ao alcance, a natureza indicada e a feira (se aparecer)
+  const zona = { monumentos: alcance.has('monumento') ? 1 : 0, bancos: alcance.has('banco') ? 1 : 0, feiras: pctFeira > 0 ? 1 : 0, naturezaHa: +$('naturezaHa').value,
+    oficinas: ['pedra', 'metal', 'madeira', 'ferragens'].filter(c => alcance.has(c)).length, mercados: alcance.has('mercado') ? 1 : 0 };
+  const rec = recomendarFacao(disponivel, zona), fRec = FACOES[rec.melhor];
+  const fomeTxt = s.diaPrimeiraFome ? `dia ${s.diaPrimeiraFome}` : 'nunca';
+  const construidos = Object.entries(s.niv).filter(([, v]) => v).map(([k, v]) => `${CONSTRUCOES[k].icone}${v}`).join(' ') +
+    (s.baus ? ` 🧰×${s.baus}` : '');
+  $('kpis').innerHTML = [
+    [diaNivel(3) ? `dia ${diaNivel(3)}` : '—', 'Chega ao nível 3 (casa)'],
+    [diaNivel(10) ? `dia ${diaNivel(10)}` : `> ${DIAS}`, 'Chega ao nível 10'],
+    [construidos || '—', `Construções ao fim de ${DIAS} dias`],
+    [`${s.totalFome} (1.º: ${fomeTxt})`, `Dias sem conseguir pagar o consumo<br>🍞 sem comida: ${s.semComida || 0} · 🪙 sem ouro: ${s.semOuroDias || 0}`],
+    [`${fRec.icone} ${fRec.nome}`, 'Fação recomendada para esta zona<br>' + rec.ordem.map(o => `${FACOES[o.id].icone} ~${o.valor} 🪙/dia`).join(' · ')],
+    [`${s.xpRecon} XP`, 'Ganho com reconhecimentos (até ao nível 3)'],
+    [`${s.xpDiarias} XP`, `Ganho com missões diárias (${diarias} por dia)`],
+    [`${s.ouroVendas} 🪙`, 'Ouro ganho a vender na feira'],
+    [Object.entries(RAMOS_CIENCIA).map(([id, r]) => `${r.icone}${s.cien[id]}`).join(' ') + ` · 🔬 ${Math.floor(s.r.ciencia)} por gastar`,
+      'Ciência no fim (níveis de Vigor, Fôlego e Economia; máx. 5)'],
+    (() => { const e = emRisco(s.r, s.niv.casa > 0, s.baus);
+      const baus = e.baus.map(b => Object.values(b).reduce((a, v) => a + v, 0)).join(' / ');
+      return [`💰 ~${e.ouro} · 🧰 ${baus || '—'} · 🧊 ${Math.floor(e.comida)}`,
+        `No fim: um roubo leva UMA destas (escolhida às cegas): 5–15% do ouro, um baú, ou o frigorífico`]; })(),
+    [`${Math.round(s.perdido)}`, 'Recursos perdidos por falta de espaço' +
+      (s.perdido ? '<br>' + REC.filter(k => s.perdidoPor[k]).map(k => `${ic(k)} ${Math.round(s.perdidoPor[k])}`).join(' · ') : '')],
+  ].map(([v, r]) => `<div class="cartao kpi"><div class="v">${v}</div><div class="r">${r}</div></div>`).join('');
+
+  $('marcos').innerHTML = `<tr><th>Dia</th><th>Acontecimento</th>${REC.map(k => `<th>${ic(k)}</th>`).join('')}</tr>` +
+    marcos.map(m => `<tr class="${m.cls}"><td class="n">${m.d}</td><td>${m.texto}</td>${REC.map(k => `<td class="n">${Math.round(m.r[k])}</td>`).join('')}</tr>`).join('');
+
+  $('rendimento').innerHTML = `<tr>${REC.map(k => `<th>${ic(k)} ${k}</th>`).join('')}</tr><tr>${REC.map(k => `<td class="n">${rendimentoUlt[k] > 0 ? '+' : ''}${Math.round(rendimentoUlt[k] || 0)}/dia</td>`).join('')}</tr>`;
+}
+
+function tabelas() {
+  const linhas = [];
+  for (const [k, c] of Object.entries(CONSTRUCOES)) {
+    c.niveis.forEach((nv, i) => {
+      const ramo = nv.ciencia && ARVORES_FACAO[nv.facao][nv.ciencia.ramo];
+      const req = [nv.nivelJogador ? `jogador ${nv.nivelJogador}` : '', nv.nivelCasa ? `casa ${nv.nivelCasa}` : '',
+        nv.facao ? `só ${FACOES[nv.facao].nome}` : '', ramo ? `${ramo.icone} ${ramo.nome} ${nv.ciencia.nivel}` : ''].filter(Boolean).join(', ');
+      let efeito = '';
+      if (nv.emCasaPorHora) efeito = `em casa: ${fmtCusto(nv.emCasaPorHora)}/h · alegria +${nv.alegriaEmCasa} · espaços: ${nv.espacosDentro} dentro, ${nv.espacosFora} fora`;
+      if (nv.energiaDescanso) efeito = `descanso (4 h seguidas em casa): +${nv.energiaDescanso} energia`;
+      if (nv.energiaHoraEmCasa) efeito = `em casa: +${nv.energiaHoraEmCasa} energia/h · alegria +${nv.alegriaEmCasa}`;
+      if (nv.recolhasRemotasDia) efeito = `recolhe a produção de ${nv.recolhasRemotasDia} POIs por dia a partir de casa`;
+      if (nv.capacidade && c.guarda === 'materiais') efeito = `+${nv.capacidade} de espaço para 🪨🔩🪵 (partilhado pelos três; pode ser roubado) · COMPRA-SE (só ouro), o tempo é a entrega · não sobe de nível · máx. ${c.maxPorNivelCasa.join('/')} baús com casa 1/2/3`;
+      if (nv.capacidade && c.guarda === 'comida') efeito = `+${nv.capacidade} de espaço para 🍞 comida · 1 por casa`;
+      if (c.tipo === 'cao') efeito = `compra-se · máx. ${c.maxCaes} · defende 2–6% dos roubos (🏡 Lar)`;
+      if (nv.consome) efeito = `${fmtCusto(nv.consome)} → ${fmtCusto(nv.produz)} a cada ${nv.cicloHoras}h · acumula ${nv.maxHoras}h`;
+      else if (nv.produz) efeito = `${fmtCusto(nv.produz)} a cada ${nv.cicloHoras}h · acumula ${nv.maxHoras}h (até ${Math.floor(nv.maxHoras / nv.cicloHoras * Object.values(nv.produz)[0])})`;
+      const t = nv.horas >= 24 ? `${nv.horas / 24} dia${nv.horas >= 48 ? 's' : ''}` : `${nv.horas} h`;
+      linhas.push(`<tr><td>${c.icone} ${c.nome}</td><td class="n">${i + 1}</td><td>${req}</td><td>${fmtCusto(nv.custo)}</td><td>${t}</td><td>${efeito}</td></tr>`);
+    });
+  }
+  $('tabelaConstr').innerHTML = '<tr><th>Construção</th><th>Nível</th><th>Requer</th><th>Custo</th><th>Tempo</th><th>Efeito</th></tr>' + linhas.join('');
+  $('tabelaFacoes').innerHTML = '<tr><th>Fação</th><th>Foco</th><th>Árvore de ciência (a partir do nível 11)</th></tr>' +
+    Object.entries(FACOES).map(([id, f]) => `<tr><td>${f.icone} ${f.nome}</td><td>${f.lema}</td><td>${f.arvore}<br><small>${Object.values(ARVORES_FACAO[id] || {}).map(r => r.icone + ' ' + r.nome).join(' · ')}</small></td></tr>`).join('');
+}
+
+document.querySelectorAll('input').forEach(i => i.addEventListener('input', simular));
+desenharAlcance(); tabelas(); simular();
+</script>
+</body>
+</html>
